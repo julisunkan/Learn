@@ -2,6 +2,7 @@ import os
 import json
 import zipfile
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash, session
+from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import io
@@ -10,6 +11,8 @@ from reportlab.lib.pagesizes import letter
 from reportlab.lib.colors import blue, black
 import markdown
 from typing import Optional
+import hashlib
+import time
 
 app = Flask(__name__)
 # Require secure session secret
@@ -17,11 +20,58 @@ if not os.environ.get('SESSION_SECRET'):
     raise RuntimeError("SESSION_SECRET environment variable must be set for security")
 app.secret_key = os.environ.get('SESSION_SECRET')
 
+# Database Configuration
+if not os.environ.get('DATABASE_URL'):
+    raise RuntimeError("DATABASE_URL environment variable must be set for progress tracking")
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db = SQLAlchemy(app)
+
 # Configuration
 UPLOAD_FOLDER = 'static/resources'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'zip', 'mp4'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Database Models
+class UserProgress(db.Model):
+    __tablename__ = 'user_progress'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_fingerprint = db.Column(db.String(64), nullable=False, index=True)
+    ip_address = db.Column(db.String(45), nullable=False)
+    user_agent = db.Column(db.Text, nullable=False)
+    module_id = db.Column(db.Integer, nullable=False)
+    completed = db.Column(db.Boolean, default=False)
+    quiz_score = db.Column(db.Integer, nullable=True)
+    notes = db.Column(db.Text, nullable=True)
+    bookmarked = db.Column(db.Boolean, default=False)
+    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
+    
+    __table_args__ = (db.UniqueConstraint('user_fingerprint', 'module_id', name='unique_user_module'),)
+
+class UserFeedback(db.Model):
+    __tablename__ = 'user_feedback'
+    
+    id = db.Column(db.Integer, primary_key=True)
+    user_fingerprint = db.Column(db.String(64), nullable=False)
+    module_id = db.Column(db.Integer, nullable=False)
+    rating = db.Column(db.Integer, nullable=True)
+    comment = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+def generate_user_fingerprint(request):
+    """Generate a unique fingerprint based on IP address, user agent, and other identifying information"""
+    ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
+    user_agent = request.headers.get('User-Agent', '')
+    accept_language = request.headers.get('Accept-Language', '')
+    accept_encoding = request.headers.get('Accept-Encoding', '')
+    
+    # Create a fingerprint hash from available data
+    fingerprint_data = f"{ip}:{user_agent}:{accept_language}:{accept_encoding}"
+    fingerprint = hashlib.sha256(fingerprint_data.encode()).hexdigest()
+    
+    return fingerprint
 
 def load_config():
     """Load site configuration from config.json"""
