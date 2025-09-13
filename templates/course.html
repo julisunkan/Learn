@@ -78,15 +78,16 @@
                 <div class="card-body">
                     <form id="quizForm">
                         {% for question in quiz.questions %}
+                        {% set outer_loop = loop %}
                         <div class="mb-4">
-                            <h6>{{ loop.index }}. {{ question.question }}</h6>
+                            <h6>{{ outer_loop.index }}. {{ question.question }}</h6>
                             {% for option in question.options %}
                             <div class="form-check">
                                 <input class="form-check-input" type="radio" 
-                                       name="question_{{ loop.index0 }}" 
+                                       name="question_{{ outer_loop.index0 }}" 
                                        value="{{ loop.index0 }}" 
-                                       id="q{{ loop.index0 }}_opt{{ loop.index }}">
-                                <label class="form-check-label" for="q{{ loop.index0 }}_opt{{ loop.index }}">
+                                       id="q{{ outer_loop.index0 }}_opt{{ loop.index0 }}">
+                                <label class="form-check-label" for="q{{ outer_loop.index0 }}_opt{{ loop.index0 }}">
                                     {{ option }}
                                 </label>
                             </div>
