@@ -27,7 +27,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
 # Progress Storage Functions
 def load_user_progress():
-    \"\"\"Load user progress from progress.json\"\"\"
+    """Load user progress from progress.json"""
     try:
         with open('data/progress.json', 'r') as f:
             return json.load(f)
@@ -35,15 +35,15 @@ def load_user_progress():
         return {}
 
 def save_user_progress(progress_data):
-    \"\"\"Save user progress to progress.json\"\"\"
+    """Save user progress to progress.json"""
     os.makedirs('data', exist_ok=True)
     with open('data/progress.json', 'w') as f:
         json.dump(progress_data, f, indent=4)
 
 def get_user_progress(user_fingerprint, module_id):
-    \"\"\"Get progress for a specific user and module\"\"\"
+    """Get progress for a specific user and module"""
     progress_data = load_user_progress()
-    user_key = f\"{user_fingerprint}_{module_id}\"
+    user_key = f"{user_fingerprint}_{module_id}"
     return progress_data.get(user_key, {
         'completed': False,
         'quiz_score': None,
@@ -53,9 +53,9 @@ def get_user_progress(user_fingerprint, module_id):
     })
 
 def set_user_progress(user_fingerprint, module_id, progress_update):
-    \"\"\"Update progress for a specific user and module\"\"\"
+    """Update progress for a specific user and module"""
     progress_data = load_user_progress()
-    user_key = f\"{user_fingerprint}_{module_id}\"
+    user_key = f"{user_fingerprint}_{module_id}"
     
     if user_key in progress_data:
         progress_data[user_key].update(progress_update)
@@ -76,7 +76,7 @@ def set_user_progress(user_fingerprint, module_id, progress_update):
     return progress_data[user_key]
 
 def get_all_user_progress(user_fingerprint):
-    \"\"\"Get all progress for a specific user\"\"\"
+    """Get all progress for a specific user"""
     progress_data = load_user_progress()
     user_progress = {}
     
@@ -346,6 +346,56 @@ def submit_feedback():
     
     save_feedback(module_id, feedback_data)
     return jsonify({"success": True})
+
+# Progress Tracking API Endpoints
+@app.route('/api/progress', methods=['GET'])
+def get_progress():
+    """Get all progress for the current user based on device fingerprint"""
+    user_fingerprint = generate_user_fingerprint(request)
+    progress = get_all_user_progress(user_fingerprint)
+    return jsonify(progress)
+
+@app.route('/api/progress', methods=['POST'])
+def update_progress():
+    """Update progress for a specific module"""
+    data = request.json or {}
+    module_id = data.get('module_id')
+    if module_id is None:
+        return jsonify({"success": False, "error": "module_id is required"}), 400
+        
+    user_fingerprint = generate_user_fingerprint(request)
+    
+    # Extract progress updates from request
+    progress_update = {}
+    if 'completed' in data:
+        progress_update['completed'] = data['completed']
+    if 'notes' in data:
+        progress_update['notes'] = data['notes']
+    if 'bookmarked' in data:
+        progress_update['bookmarked'] = data['bookmarked']
+    if 'quiz_score' in data:
+        progress_update['quiz_score'] = data['quiz_score']
+    
+    # Update progress
+    updated_progress = set_user_progress(user_fingerprint, module_id, progress_update)
+    return jsonify({"success": True, "progress": updated_progress})
+
+@app.route('/api/quiz_result', methods=['POST'])
+def save_quiz_result():
+    """Save quiz results for a module"""
+    data = request.json or {}
+    module_id = data.get('module_id')
+    score = data.get('score')
+    
+    if module_id is None or score is None:
+        return jsonify({"success": False, "error": "module_id and score are required"}), 400
+        
+    user_fingerprint = generate_user_fingerprint(request)
+    
+    # Update progress with quiz score
+    progress_update = {'quiz_score': score}
+    updated_progress = set_user_progress(user_fingerprint, module_id, progress_update)
+    return jsonify({"success": True, "progress": updated_progress})
 
 @app.route('/generate_certificate')
 def generate_certificate():
