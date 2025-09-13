@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - {{ config.site_title }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    {% if mode == 'login' %}
+    <!-- Admin Login -->
+    <div class="row justify-content-center mt-5">
+        <div class="col-md-4">
+            <div class="card">
+                <div class="card-header text-center">
+                    <h4><i class="bi bi-shield-lock"></i> Admin Access</h4>
+                </div>
+                <div class="card-body">
+                    {% if config.enable_passcode %}
+                    <form id="adminLoginForm">
+                        <div class="mb-3">
+                            <label for="passcode" class="form-label">Enter Passcode:</label>
+                            <input type="password" class="form-control" id="passcode" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="bi bi-unlock"></i> Access Admin Panel
+                        </button>
+                    </form>
+                    {% else %}
+                    <div class="text-center">
+                        <p>Passcode protection is disabled.</p>
+                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">
+                            <i class="bi bi-gear"></i> Go to Dashboard
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Admin Dashboard -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1><i class="bi bi-gear"></i> Admin Dashboard</h1>
+                <div>
+                    <button class="btn btn-outline-secondary" onclick="autoSave()">
+                        <i class="bi bi-save"></i> Save All
+                    </button>
+                    <a href="{{ url_for('index') }}" class="btn btn-primary">
+                        <i class="bi bi-house"></i> View Site
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4" id="adminTabs" role="tablist">
+        <li class="nav-item">
+            <button class="nav-link active" id="modules-tab" data-bs-toggle="tab" data-bs-target="#modules" type="button">
+                <i class="bi bi-collection"></i> Modules
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="config-tab" data-bs-toggle="tab" data-bs-target="#config" type="button">
+                <i class="bi bi-palette"></i> Site Config
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="import-export-tab" data-bs-toggle="tab" data-bs-target="#import-export" type="button">
+                <i class="bi bi-arrow-repeat"></i> Import/Export
+            </button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link" id="feedback-tab" data-bs-toggle="tab" data-bs-target="#feedback" type="button">
+                <i class="bi bi-chat-dots"></i> Feedback
+            </button>
+        </li>
+    </ul>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="adminTabContent">
+        <!-- Modules Tab -->
+        <div class="tab-pane fade show active" id="modules" role="tabpanel">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5><i class="bi bi-collection"></i> Course Modules</h5>
+                            <button class="btn btn-success btn-sm" onclick="showAddModuleModal()">
+                                <i class="bi bi-plus"></i> Add Module
+                            </button>
+                        </div>
+                        <div class="card-body">
+                            <div id="modulesList" class="sortable-list">
+                                <!-- Modules will be loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6><i class="bi bi-info-circle"></i> Instructions</h6>
+                        </div>
+                        <div class="card-body">
+                            <small class="text-muted">
+                                • Drag and drop modules to reorder<br>
+                                • Click edit to modify module content<br>
+                                • Use the preview feature before saving<br>
+                                • Video URLs should be direct MP4 links<br>
+                                • HTML content supports basic formatting
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Site Config Tab -->
+        <div class="tab-pane fade" id="config" role="tabpanel">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="bi bi-palette"></i> Site Configuration</h5>
+                        </div>
+                        <div class="card-body">
+                            <form id="configForm">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="siteTitle" class="form-label">Site Title</label>
+                                            <input type="text" class="form-control" id="siteTitle" value="{{ config.site_title }}">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="siteDescription" class="form-label">Site Description</label>
+                                            <textarea class="form-control" id="siteDescription" rows="3">{{ config.site_description }}</textarea>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="fontFamily" class="form-label">Font Family</label>
+                                            <select class="form-control" id="fontFamily">
+                                                <option value="Arial, sans-serif">Arial</option>
+                                                <option value="Georgia, serif">Georgia</option>
+                                                <option value="'Times New Roman', serif">Times New Roman</option>
+                                                <option value="'Courier New', monospace">Courier New</option>
+                                                <option value="Verdana, sans-serif">Verdana</option>
+                                            </select>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="fontSize" class="form-label">Font Size</label>
+                                            <select class="form-control" id="fontSize">
+                                                <option value="14px">Small (14px)</option>
+                                                <option value="16px">Medium (16px)</option>
+                                                <option value="18px">Large (18px)</option>
+                                                <option value="20px">Extra Large (20px)</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="primaryColor" class="form-label">Primary Color</label>
+                                            <input type="color" class="form-control form-control-color" id="primaryColor" value="{{ config.primary_color }}">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="secondaryColor" class="form-label">Secondary Color</label>
+                                            <input type="color" class="form-control form-control-color" id="secondaryColor" value="{{ config.secondary_color }}">
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="textColor" class="form-label">Text Color</label>
+                                            <input type="color" class="form-control form-control-color" id="textColor" value="{{ config.text_color }}">
+                                        </div>
+                                        <div class="mb-3">
+                                            <div class="form-check form-switch">
+                                                <input class="form-check-input" type="checkbox" id="enablePasscode" {{ 'checked' if config.enable_passcode else '' }}>
+                                                <label class="form-check-label" for="enablePasscode">Enable Passcode Protection</label>
+                                            </div>
+                                        </div>
+                                        <div class="mb-3">
+                                            <label for="adminPasscode" class="form-label">Admin Passcode</label>
+                                            <input type="password" class="form-control" id="adminPasscode" value="{{ config.admin_passcode }}">
+                                        </div>
+                                    </div>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-save"></i> Save Configuration
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6><i class="bi bi-eye"></i> Live Preview</h6>
+                        </div>
+                        <div class="card-body" id="configPreview">
+                            <div class="preview-container">
+                                <div class="preview-navbar bg-primary text-white p-2 mb-2">
+                                    <span id="previewTitle">{{ config.site_title }}</span>
+                                </div>
+                                <div class="preview-content p-3">
+                                    <p id="previewDescription">{{ config.site_description }}</p>
+                                    <button class="btn btn-primary btn-sm">Sample Button</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Import/Export Tab -->
+        <div class="tab-pane fade" id="import-export" role="tabpanel">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="bi bi-upload"></i> Import Course</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Upload a ZIP file containing course data to import.</p>
+                            <form id="importForm" enctype="multipart/form-data">
+                                <div class="mb-3">
+                                    <input type="file" class="form-control" id="importFile" accept=".zip" required>
+                                </div>
+                                <button type="submit" class="btn btn-primary">
+                                    <i class="bi bi-upload"></i> Import Course
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="bi bi-download"></i> Export Course</h5>
+                        </div>
+                        <div class="card-body">
+                            <p>Download all course data as a ZIP file for backup or sharing.</p>
+                            <a href="{{ url_for('export_course') }}" class="btn btn-success">
+                                <i class="bi bi-download"></i> Export Course
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feedback Tab -->
+        <div class="tab-pane fade" id="feedback" role="tabpanel">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-chat-dots"></i> Student Feedback</h5>
+                </div>
+                <div class="card-body">
+                    <div id="feedbackList">
+                        <p class="text-muted">Loading feedback...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Add/Edit Module Modal -->
+<div class="modal fade" id="moduleModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="moduleModalTitle">Add New Module</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="moduleForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="moduleTitle" class="form-label">Module Title *</label>
+                                <input type="text" class="form-control" id="moduleTitle" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="moduleDescription" class="form-label">Description</label>
+                                <textarea class="form-control" id="moduleDescription" rows="2"></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label for="moduleVideoUrl" class="form-label">Video URL (MP4)</label>
+                                <input type="url" class="form-control" id="moduleVideoUrl" placeholder="https://example.com/video.mp4">
+                            </div>
+                            <div class="mb-3">
+                                <label for="moduleDuration" class="form-label">Duration (minutes)</label>
+                                <input type="number" class="form-control" id="moduleDuration" min="1">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="moduleContent" class="form-label">HTML Content</label>
+                                <textarea class="form-control" id="moduleContent" rows="8" placeholder="Enter HTML content..."></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Resources</label>
+                                <div id="resourcesList">
+                                    <!-- Resources will be added here -->
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-primary" onclick="addResource()">
+                                    <i class="bi bi-plus"></i> Add Resource
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Quiz Section -->
+                    <hr>
+                    <h6><i class="bi bi-question-circle"></i> Quiz Questions</h6>
+                    <div id="quizQuestions">
+                        <!-- Quiz questions will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="addQuizQuestion()">
+                        <i class="bi bi-plus"></i> Add Question
+                    </button>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="previewModule()">
+                    <i class="bi bi-eye"></i> Preview
+                </button>
+                <button type="button" class="btn btn-success" onclick="saveModule()">
+                    <i class="bi bi-save"></i> Save Module
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const isLoginMode = {{ 'true' if mode == 'login' else 'false' }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    if (isLoginMode) {
+        initializeAdminLogin();
+    } else {
+        initializeAdminDashboard();
+        loadModules();
+        loadFeedback();
+        initializeConfigPreview();
+        initializeAutoSave();
+    }
+});
+</script>
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
+{% endblock %}

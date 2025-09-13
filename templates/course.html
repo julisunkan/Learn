@@ -1,0 +1,437 @@
+{% extends "base.html" %}
+
+{% block title %}{{ module.title }} - {{ config.site_title }}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <!-- Module Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Course Home</a></li>
+                    <li class="breadcrumb-item active">{{ module.title }}</li>
+                </ol>
+            </nav>
+            
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1>{{ module.title }}</h1>
+                    <p class="text-muted">
+                        <i class="bi bi-clock"></i> {{ module.duration or 'N/A' }} minutes
+                        • Module {{ module_id + 1 }} of {{ total_modules }}
+                    </p>
+                </div>
+                <div>
+                    <button class="btn btn-outline-warning bookmark-btn" data-module-id="{{ module_id }}">
+                        <i class="bi bi-star"></i> Bookmark
+                    </button>
+                    <div class="form-check form-switch d-inline-block ms-2">
+                        <input class="form-check-input module-complete-checkbox" type="checkbox" 
+                               data-module-id="{{ module_id }}" id="moduleComplete">
+                        <label class="form-check-label" for="moduleComplete">Complete</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Video Player -->
+    {% if module.video_url %}
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <video id="moduleVideo" class="w-100" controls preload="metadata" style="max-height: 400px;">
+                        <source src="{{ module.video_url }}" type="video/mp4">
+                        Your browser does not support the video tag.
+                    </video>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="row">
+        <!-- Main Content -->
+        <div class="col-lg-8">
+            <!-- Module Content -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-file-text"></i> Course Content</h5>
+                </div>
+                <div class="card-body">
+                    {% if html_content %}
+                        {{ html_content|safe }}
+                    {% else %}
+                        <p class="text-muted">No content available for this module.</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Quiz Section -->
+            {% if quiz and quiz.questions %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-question-circle"></i> Quiz</h5>
+                </div>
+                <div class="card-body">
+                    <form id="quizForm">
+                        {% for question in quiz.questions %}
+                        <div class="mb-4">
+                            <h6>{{ loop.index }}. {{ question.question }}</h6>
+                            {% for option in question.options %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="radio" 
+                                       name="question_{{ loop.index0 }}" 
+                                       value="{{ loop.index0 }}" 
+                                       id="q{{ loop.index0 }}_opt{{ loop.index }}">
+                                <label class="form-check-label" for="q{{ loop.index0 }}_opt{{ loop.index }}">
+                                    {{ option }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% endfor %}
+                        <button type="button" class="btn btn-primary" onclick="submitQuiz()">
+                            <i class="bi bi-check-circle"></i> Submit Quiz
+                        </button>
+                    </form>
+                    <div id="quizResult" style="display: none;" class="mt-3"></div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Feedback Form -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-chat-dots"></i> Feedback</h5>
+                </div>
+                <div class="card-body">
+                    <form id="feedbackForm">
+                        <div class="mb-3">
+                            <label class="form-label">Rate this module:</label>
+                            <div class="rating">
+                                {% for i in range(1, 6) %}
+                                <button type="button" class="btn btn-outline-warning btn-sm rating-star" data-rating="{{ i }}">
+                                    <i class="bi bi-star"></i>
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label for="feedbackComment" class="form-label">Comments (optional):</label>
+                            <textarea class="form-control" id="feedbackComment" rows="3" 
+                                    placeholder="Share your thoughts about this module..."></textarea>
+                        </div>
+                        <button type="button" class="btn btn-primary" onclick="submitFeedback()">
+                            <i class="bi bi-send"></i> Submit Feedback
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Notes -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-journal-text"></i> My Notes</h5>
+                </div>
+                <div class="card-body">
+                    <textarea id="moduleNotes" class="form-control" rows="6" 
+                            placeholder="Take notes about this module..."></textarea>
+                    <small class="text-muted">Notes are saved automatically</small>
+                </div>
+            </div>
+
+            <!-- Resources -->
+            {% if module.resources %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5><i class="bi bi-download"></i> Resources</h5>
+                </div>
+                <div class="card-body">
+                    {% for resource in module.resources %}
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <span>{{ resource.name }}</span>
+                        <a href="{{ resource.url }}" class="btn btn-sm btn-outline-primary" download>
+                            <i class="bi bi-download"></i>
+                        </a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Navigation -->
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-arrow-left-right"></i> Navigation</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        {% if module_id > 0 %}
+                        <a href="{{ url_for('module_detail', module_id=module_id-1) }}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left"></i> Previous Module
+                        </a>
+                        {% endif %}
+                        
+                        {% if module_id < total_modules - 1 %}
+                        <a href="{{ url_for('module_detail', module_id=module_id+1) }}" class="btn btn-outline-secondary">
+                            Next Module <i class="bi bi-arrow-right"></i>
+                        </a>
+                        {% endif %}
+                        
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">
+                            <i class="bi bi-house"></i> Course Home
+                        </a>
+                    </div>
+                    
+                    <hr>
+                    <small class="text-muted">
+                        <strong>Keyboard shortcuts:</strong><br>
+                        ← Previous • → Next • Space Complete
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const moduleId = {{ module_id }};
+const totalModules = {{ total_modules }};
+const quiz = {{ quiz|tojson|safe }};
+
+document.addEventListener('DOMContentLoaded', function() {
+    initializeModulePage();
+    initializeVideoTracking();
+    initializeNotes();
+    initializeQuiz();
+    initializeRating();
+    initializeModuleKeyboardNavigation();
+    loadModuleData();
+});
+
+function initializeModulePage() {
+    // Load completion status
+    const completed = getCompletedModules();
+    const checkbox = document.querySelector('.module-complete-checkbox');
+    if (checkbox && completed.includes(moduleId)) {
+        checkbox.checked = true;
+    }
+    
+    // Load bookmark status  
+    const bookmarked = getBookmarkedModules();
+    const bookmarkBtn = document.querySelector('.bookmark-btn');
+    if (bookmarkBtn && bookmarked.includes(moduleId)) {
+        bookmarkBtn.classList.add('active');
+        bookmarkBtn.innerHTML = '<i class="bi bi-star-fill"></i> Bookmarked';
+    }
+    
+    // Event listeners
+    if (checkbox) {
+        checkbox.addEventListener('change', function() {
+            toggleModuleCompletion(moduleId);
+        });
+    }
+    
+    if (bookmarkBtn) {
+        bookmarkBtn.addEventListener('click', function() {
+            toggleBookmark(moduleId);
+            updateBookmarkButton(bookmarkBtn, moduleId);
+        });
+    }
+}
+
+function initializeVideoTracking() {
+    const video = document.getElementById('moduleVideo');
+    if (!video) return;
+    
+    video.addEventListener('ended', function() {
+        // Auto-mark as complete when video ends
+        const checkbox = document.querySelector('.module-complete-checkbox');
+        if (checkbox && !checkbox.checked) {
+            checkbox.checked = true;
+            toggleModuleCompletion(moduleId);
+        }
+    });
+}
+
+function initializeNotes() {
+    const notesTextarea = document.getElementById('moduleNotes');
+    if (!notesTextarea) return;
+    
+    // Load existing notes
+    const notes = localStorage.getItem(`module_notes_${moduleId}`) || '';
+    notesTextarea.value = notes;
+    
+    // Auto-save notes
+    notesTextarea.addEventListener('input', function() {
+        localStorage.setItem(`module_notes_${moduleId}`, this.value);
+    });
+}
+
+function initializeQuiz() {
+    // Load quiz results if completed
+    const quizResults = JSON.parse(localStorage.getItem(`quiz_results_${moduleId}`) || '{}');
+    if (Object.keys(quizResults).length > 0) {
+        displayQuizResults(quizResults);
+    }
+}
+
+function initializeRating() {
+    const ratingStars = document.querySelectorAll('.rating-star');
+    const savedRating = localStorage.getItem(`module_rating_${moduleId}`);
+    
+    if (savedRating) {
+        updateRatingDisplay(parseInt(savedRating));
+    }
+    
+    ratingStars.forEach(star => {
+        star.addEventListener('click', function() {
+            const rating = parseInt(this.dataset.rating);
+            localStorage.setItem(`module_rating_${moduleId}`, rating);
+            updateRatingDisplay(rating);
+        });
+    });
+}
+
+function updateRatingDisplay(rating) {
+    const stars = document.querySelectorAll('.rating-star');
+    stars.forEach((star, index) => {
+        if (index < rating) {
+            star.classList.remove('btn-outline-warning');
+            star.classList.add('btn-warning');
+            star.innerHTML = '<i class="bi bi-star-fill"></i>';
+        } else {
+            star.classList.remove('btn-warning');
+            star.classList.add('btn-outline-warning');
+            star.innerHTML = '<i class="bi bi-star"></i>';
+        }
+    });
+}
+
+function initializeModuleKeyboardNavigation() {
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        
+        switch(e.key) {
+            case 'ArrowLeft':
+                if (moduleId > 0) {
+                    window.location.href = `/module/${moduleId - 1}`;
+                }
+                break;
+            case 'ArrowRight':
+                if (moduleId < totalModules - 1) {
+                    window.location.href = `/module/${moduleId + 1}`;
+                }
+                break;
+            case ' ':
+                e.preventDefault();
+                const checkbox = document.querySelector('.module-complete-checkbox');
+                if (checkbox) {
+                    checkbox.checked = !checkbox.checked;
+                    toggleModuleCompletion(moduleId);
+                }
+                break;
+        }
+    });
+}
+
+function submitQuiz() {
+    const form = document.getElementById('quizForm');
+    const formData = new FormData(form);
+    const answers = {};
+    
+    quiz.questions.forEach((question, index) => {
+        const answer = formData.get(`question_${index}`);
+        answers[index] = answer ? parseInt(answer) : null;
+    });
+    
+    // Calculate score
+    let correct = 0;
+    quiz.questions.forEach((question, index) => {
+        if (answers[index] === question.correct_answer) {
+            correct++;
+        }
+    });
+    
+    const results = {
+        answers: answers,
+        score: correct,
+        total: quiz.questions.length,
+        percentage: Math.round((correct / quiz.questions.length) * 100)
+    };
+    
+    // Save results
+    localStorage.setItem(`quiz_results_${moduleId}`, JSON.stringify(results));
+    
+    // Display results
+    displayQuizResults(results);
+}
+
+function displayQuizResults(results) {
+    const resultDiv = document.getElementById('quizResult');
+    const isPassing = results.percentage >= 70;
+    
+    resultDiv.innerHTML = `
+        <div class="alert ${isPassing ? 'alert-success' : 'alert-warning'}">
+            <h6><i class="bi bi-${isPassing ? 'check-circle' : 'exclamation-triangle'}"></i> Quiz Results</h6>
+            <p>Score: ${results.score}/${results.total} (${results.percentage}%)</p>
+            ${isPassing ? 
+                '<p class="mb-0">Congratulations! You passed the quiz.</p>' : 
+                '<p class="mb-0">You need 70% to pass. Review the content and try again.</p>'
+            }
+        </div>
+    `;
+    resultDiv.style.display = 'block';
+}
+
+function submitFeedback() {
+    const rating = localStorage.getItem(`module_rating_${moduleId}`);
+    const comment = document.getElementById('feedbackComment').value;
+    
+    if (!rating) {
+        alert('Please provide a rating before submitting feedback.');
+        return;
+    }
+    
+    const feedbackData = {
+        module_id: moduleId,
+        rating: parseInt(rating),
+        comment: comment
+    };
+    
+    fetch('/submit_feedback', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(feedbackData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Thank you for your feedback!');
+            document.getElementById('feedbackComment').value = '';
+        } else {
+            alert('Error submitting feedback. Please try again.');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error submitting feedback. Please try again.');
+    });
+}
+
+function loadModuleData() {
+    // This function can be used to load any additional module-specific data
+    updateBookmarkButton(document.querySelector('.bookmark-btn'), moduleId);
+}
+</script>
+{% endblock %}

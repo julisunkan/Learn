@@ -1,3 +1,51 @@
 {
-    "modules": []
+    "modules": [
+        {
+            "title": "Welcome to the Tutorial Platform",
+            "description": "An introduction to the tutorial platform and its features",
+            "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "duration": 5,
+            "content_file": "welcome.html",
+            "resources": [
+                {
+                    "name": "Platform Guide (PDF)",
+                    "url": "/static/resources/platform-guide.pdf"
+                }
+            ],
+            "quiz": {
+                "questions": [
+                    {
+                        "question": "Which key combination allows you to navigate between modules?",
+                        "options": [
+                            "← → Arrow keys",
+                            "WASD keys", 
+                            "Tab and Shift+Tab",
+                            "Page Up/Page Down"
+                        ],
+                        "correct_answer": 0
+                    },
+                    {
+                        "question": "What happens when you press the Space key on a module?",
+                        "options": [
+                            "Opens the module",
+                            "Bookmarks the module",
+                            "Marks the module as complete",
+                            "Starts the video"
+                        ],
+                        "correct_answer": 2
+                    },
+                    {
+                        "question": "How can administrators access the admin panel?",
+                        "options": [
+                            "Click the Admin button in the navigation",
+                            "Go to /admin URL directly",
+                            "Use the settings menu",
+                            "Contact support"
+                        ],
+                        "correct_answer": 1
+                    }
+                ]
+            }
+        }
+    ]
 }

@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="text-center">
+                <h1 class="display-4 mb-3">{{ config.site_title }}</h1>
+                <p class="lead">{{ config.site_description }}</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress Bar -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title"><i class="bi bi-trophy"></i> Course Progress</h5>
+                    <div class="progress mb-2" style="height: 20px;">
+                        <div id="globalProgress" class="progress-bar bg-success" role="progressbar" style="width: 0%">
+                            0%
+                        </div>
+                    </div>
+                    <p class="text-muted mb-0">
+                        <span id="completedCount">0</span> of <span id="totalCount">{{ courses.modules|length }}</span> modules completed
+                    </p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search and Filters -->
+    <div class="row mb-4">
+        <div class="col-md-8">
+            <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <input type="text" id="searchInput" class="form-control" placeholder="Search modules by title or keywords...">
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="btn-group w-100" role="group">
+                <button type="button" class="btn btn-outline-secondary active" data-filter="all">All</button>
+                <button type="button" class="btn btn-outline-secondary" data-filter="completed">Completed</button>
+                <button type="button" class="btn btn-outline-secondary" data-filter="bookmarked">Bookmarked</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Course Modules -->
+    <div class="row" id="moduleList">
+        {% for module in courses.modules %}
+        <div class="col-lg-4 col-md-6 mb-4 module-card" data-module-id="{{ loop.index0 }}" data-title="{{ module.title|lower }}">
+            <div class="card h-100 position-relative">
+                <!-- Bookmark Button -->
+                <button class="btn btn-outline-warning btn-sm position-absolute top-0 end-0 m-2 bookmark-btn" data-module-id="{{ loop.index0 }}">
+                    <i class="bi bi-star"></i>
+                </button>
+
+                <div class="card-body">
+                    <h5 class="card-title">{{ module.title }}</h5>
+                    <p class="card-text">{{ module.description or 'No description available' }}</p>
+                    
+                    <!-- Module Info -->
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <small class="text-muted">
+                            <i class="bi bi-clock"></i> {{ module.duration or 'N/A' }} min
+                        </small>
+                        <div class="form-check">
+                            <input class="form-check-input module-complete-checkbox" type="checkbox" 
+                                   data-module-id="{{ loop.index0 }}" id="complete{{ loop.index0 }}">
+                            <label class="form-check-label" for="complete{{ loop.index0 }}">
+                                Complete
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Progress indicator -->
+                    <div class="mb-3">
+                        <div class="progress" style="height: 5px;">
+                            <div class="progress-bar module-progress" data-module-id="{{ loop.index0 }}" style="width: 0%"></div>
+                        </div>
+                    </div>
+
+                    <a href="{{ url_for('module_detail', module_id=loop.index0) }}" class="btn btn-primary">
+                        <i class="bi bi-play-circle"></i> Start Module
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% else %}
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i class="bi bi-book display-1 text-muted"></i>
+                <h3 class="text-muted">No modules available</h3>
+                <p class="text-muted">Contact the administrator to add course content.</p>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Certificate Section (shown when all modules completed) -->
+    <div class="row mt-5" id="certificateSection" style="display: none;">
+        <div class="col-12">
+            <div class="alert alert-success text-center">
+                <h4><i class="bi bi-trophy-fill"></i> Congratulations!</h4>
+                <p>You've completed all modules in this course!</p>
+                <a href="{{ url_for('generate_certificate') }}" class="btn btn-success btn-lg">
+                    <i class="bi bi-download"></i> Download Certificate
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Keyboard Navigation Help Modal -->
+<div class="modal fade" id="helpModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Keyboard Shortcuts</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><kbd>←</kbd> <kbd>→</kbd> Navigate between modules</p>
+                <p><kbd>Space</kbd> Mark current module as complete</p>
+                <p><kbd>/</kbd> Focus search box</p>
+                <p><kbd>?</kbd> Show this help</p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Initialize progress tracking and UI
+document.addEventListener('DOMContentLoaded', function() {
+    initializeProgress();
+    initializeSearch();
+    initializeBookmarks();
+    initializeKeyboardNavigation();
+    
+    // Update UI
+    updateProgressDisplay();
+    updateBookmarkDisplay();
+});
+</script>
+{% endblock %}
