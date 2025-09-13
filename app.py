@@ -2,7 +2,6 @@ import os
 import json
 import zipfile
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash, session
-from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import io
@@ -20,45 +19,74 @@ if not os.environ.get('SESSION_SECRET'):
     raise RuntimeError("SESSION_SECRET environment variable must be set for security")
 app.secret_key = os.environ.get('SESSION_SECRET')
 
-# Database Configuration
-if not os.environ.get('DATABASE_URL'):
-    raise RuntimeError("DATABASE_URL environment variable must be set for progress tracking")
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL')
-app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-db = SQLAlchemy(app)
-
 # Configuration
 UPLOAD_FOLDER = 'static/resources'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'zip', 'mp4'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 
-# Database Models
-class UserProgress(db.Model):
-    __tablename__ = 'user_progress'
-    
-    id = db.Column(db.Integer, primary_key=True)
-    user_fingerprint = db.Column(db.String(64), nullable=False, index=True)
-    ip_address = db.Column(db.String(45), nullable=False)
-    user_agent = db.Column(db.Text, nullable=False)
-    module_id = db.Column(db.Integer, nullable=False)
-    completed = db.Column(db.Boolean, default=False)
-    quiz_score = db.Column(db.Integer, nullable=True)
-    notes = db.Column(db.Text, nullable=True)
-    bookmarked = db.Column(db.Boolean, default=False)
-    last_updated = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    __table_args__ = (db.UniqueConstraint('user_fingerprint', 'module_id', name='unique_user_module'),)
+# Progress Storage Functions
+def load_user_progress():
+    \"\"\"Load user progress from progress.json\"\"\"
+    try:
+        with open('data/progress.json', 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        return {}
 
-class UserFeedback(db.Model):
-    __tablename__ = 'user_feedback'
+def save_user_progress(progress_data):
+    \"\"\"Save user progress to progress.json\"\"\"
+    os.makedirs('data', exist_ok=True)
+    with open('data/progress.json', 'w') as f:
+        json.dump(progress_data, f, indent=4)
+
+def get_user_progress(user_fingerprint, module_id):
+    \"\"\"Get progress for a specific user and module\"\"\"
+    progress_data = load_user_progress()
+    user_key = f\"{user_fingerprint}_{module_id}\"
+    return progress_data.get(user_key, {
+        'completed': False,
+        'quiz_score': None,
+        'notes': '',
+        'bookmarked': False,
+        'last_updated': None
+    })
+
+def set_user_progress(user_fingerprint, module_id, progress_update):
+    \"\"\"Update progress for a specific user and module\"\"\"
+    progress_data = load_user_progress()
+    user_key = f\"{user_fingerprint}_{module_id}\"
     
-    id = db.Column(db.Integer, primary_key=True)
-    user_fingerprint = db.Column(db.String(64), nullable=False)
-    module_id = db.Column(db.Integer, nullable=False)
-    rating = db.Column(db.Integer, nullable=True)
-    comment = db.Column(db.Text, nullable=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    if user_key in progress_data:
+        progress_data[user_key].update(progress_update)
+    else:
+        progress_data[user_key] = {
+            'user_fingerprint': user_fingerprint,
+            'module_id': module_id,
+            'completed': False,
+            'quiz_score': None,
+            'notes': '',
+            'bookmarked': False,
+            'last_updated': datetime.now().isoformat()
+        }
+        progress_data[user_key].update(progress_update)
+    
+    progress_data[user_key]['last_updated'] = datetime.now().isoformat()
+    save_user_progress(progress_data)
+    return progress_data[user_key]
+
+def get_all_user_progress(user_fingerprint):
+    \"\"\"Get all progress for a specific user\"\"\"
+    progress_data = load_user_progress()
+    user_progress = {}
+    
+    for key, data in progress_data.items():
+        if data.get('user_fingerprint') == user_fingerprint:
+            module_id = data.get('module_id')
+            if module_id is not None:
+                user_progress[str(module_id)] = data
+    
+    return user_progress
 
 def generate_user_fingerprint(request):
     """Generate a unique fingerprint based on IP address, user agent, and other identifying information"""
@@ -486,10 +514,8 @@ if __name__ == '__main__':
     os.makedirs('static/resources', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     
-    # Initialize database tables
-    with app.app_context():
-        db.create_all()
-        print("Database tables initialized successfully.")
+    # Initialize data directories
+    print("Data directories initialized successfully.")
     
     # Only enable debug in development
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
