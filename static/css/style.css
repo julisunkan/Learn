@@ -12,14 +12,6 @@
   --transition: all 0.3s ease;
 }
 
-/* Dark theme variables */
-[data-theme="dark"] {
-  --bg-color: #1a1a1a;
-  --card-bg: #2d2d2d;
-  --text-color: #ffffff;
-  --border-color: #404040;
-  --secondary-text: #b0b0b0;
-}
 
 /* Base styles */
 body {
@@ -29,84 +21,6 @@ body {
   transition: var(--transition);
 }
 
-/* Dark mode styles */
-[data-theme="dark"] body {
-  background-color: var(--bg-color) !important;
-  color: var(--text-color) !important;
-}
-
-/* Apply dark mode only to non-module cards */
-[data-theme="dark"] .card:not(.module-card .card) {
-  background-color: var(--card-bg) !important;
-  border-color: var(--border-color) !important;
-  color: var(--text-color) !important;
-}
-
-/* Keep module cards colorful in dark mode */
-[data-theme="dark"] .module-card .card {
-  /* Preserve gradient backgrounds and white text */
-  color: white !important;
-}
-
-[data-theme="dark"] .module-card:nth-child(6n) .card {
-  /* For the light pastel gradient, keep dark text readable */
-  color: #333 !important;
-}
-
-[data-theme="dark"] .module-card .card-title {
-  color: inherit !important;
-  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-}
-
-[data-theme="dark"] .module-card .card-text {
-  color: inherit !important;
-  opacity: 0.95;
-}
-
-[data-theme="dark"] .module-card .text-muted {
-  color: rgba(255, 255, 255, 0.8) !important;
-}
-
-[data-theme="dark"] .module-card:nth-child(6n) .text-muted {
-  color: rgba(51, 51, 51, 0.7) !important;
-}
-
-[data-theme="dark"] .navbar {
-  background-color: var(--card-bg) !important;
-}
-
-[data-theme="dark"] .modal-content {
-  background-color: var(--card-bg) !important;
-  color: var(--text-color) !important;
-}
-
-[data-theme="dark"] .form-control,
-[data-theme="dark"] .form-select {
-  background-color: var(--bg-color) !important;
-  border-color: var(--border-color) !important;
-  color: var(--text-color) !important;
-}
-
-[data-theme="dark"] .form-control:focus,
-[data-theme="dark"] .form-select:focus {
-  background-color: var(--bg-color) !important;
-  border-color: var(--primary-color) !important;
-  color: var(--text-color) !important;
-}
-
-[data-theme="dark"] .btn-outline-secondary {
-  color: var(--secondary-text);
-  border-color: var(--border-color);
-}
-
-[data-theme="dark"] .btn-outline-secondary:hover {
-  background-color: var(--border-color);
-  color: var(--text-color);
-}
-
-[data-theme="dark"] .text-muted {
-  color: var(--secondary-text) !important;
-}
 
 /* Module cards */
 .module-card {
@@ -361,13 +275,6 @@ video {
   background: #f8f9fa;
 }
 
-[data-theme="dark"] .preview-container {
-  border-color: var(--border-color);
-}
-
-[data-theme="dark"] .preview-content {
-  background-color: var(--bg-color);
-}
 
 /* Resource upload styles */
 .resource-item {
@@ -380,9 +287,6 @@ video {
   border-radius: var(--border-radius);
 }
 
-[data-theme="dark"] .resource-item {
-  background-color: var(--card-bg);
-}
 
 /* Feedback styles */
 .feedback-item {
@@ -580,13 +484,6 @@ video::-webkit-media-controls-panel {
   background: var(--primary-color);
 }
 
-[data-theme="dark"] ::-webkit-scrollbar-track {
-  background: var(--card-bg);
-}
-
-[data-theme="dark"] ::-webkit-scrollbar-thumb {
-  background: var(--border-color);
-}
 
 /* Auto-save indicator */
 .autosave-indicator {
@@ -642,7 +539,3 @@ video::-webkit-media-controls-panel {
   font-family: 'Courier New', monospace;
 }
 
-[data-theme="dark"] .module-content code {
-  background-color: var(--card-bg);
-  color: #e83e8c;
-}

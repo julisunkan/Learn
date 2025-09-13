@@ -3,53 +3,15 @@
 // Global variables
 let completedModules = JSON.parse(localStorage.getItem('completed_modules') || '[]');
 let bookmarkedModules = JSON.parse(localStorage.getItem('bookmarked_modules') || '[]');
-let darkModeEnabled = localStorage.getItem('dark_mode') === 'true';
 
-// Initialize dark mode
+// Initialize application
 document.addEventListener('DOMContentLoaded', function() {
-    initializeDarkMode();
     initializeProgress();
     initializeSearch();
     initializeKeyboardNavigation();
     initializeBookmarks();
 });
 
-// Dark Mode Functions
-function initializeDarkMode() {
-    const darkModeToggle = document.getElementById('darkModeToggle');
-    const html = document.documentElement;
-    
-    if (darkModeEnabled) {
-        html.setAttribute('data-theme', 'dark');
-        document.body.classList.add('bg-dark', 'text-light');
-        if (darkModeToggle) {
-            darkModeToggle.innerHTML = '<i class="bi bi-sun"></i> Light Mode';
-        }
-    }
-    
-    if (darkModeToggle) {
-        darkModeToggle.addEventListener('click', toggleDarkMode);
-    }
-}
-
-function toggleDarkMode() {
-    const html = document.documentElement;
-    const body = document.body;
-    const darkModeToggle = document.getElementById('darkModeToggle');
-    
-    darkModeEnabled = !darkModeEnabled;
-    localStorage.setItem('dark_mode', darkModeEnabled);
-    
-    if (darkModeEnabled) {
-        html.setAttribute('data-theme', 'dark');
-        body.classList.add('bg-dark', 'text-light');
-        darkModeToggle.innerHTML = '<i class="bi bi-sun"></i> Light Mode';
-    } else {
-        html.setAttribute('data-theme', 'light');
-        body.classList.remove('bg-dark', 'text-light');
-        darkModeToggle.innerHTML = '<i class="bi bi-moon"></i> Dark Mode';
-    }
-}
 
 // Progress Tracking Functions
 function initializeProgress() {
