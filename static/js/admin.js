@@ -647,8 +647,8 @@ function importCourse() {
 
 // Feedback Functions
 function loadFeedback() {
-    // Load feedback from server (if feedback.json exists)
-    fetch('/data/feedback.json')
+    // Load feedback from API endpoint
+    fetch('/api/feedback')
         .then(response => {
             if (response.ok) {
                 return response.json();

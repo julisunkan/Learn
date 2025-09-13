@@ -384,6 +384,16 @@ def submit_feedback():
     save_feedback(module_id, feedback_data)
     return jsonify({"success": True})
 
+@app.route('/api/feedback', methods=['GET'])
+def get_feedback():
+    """Get all feedback data for admin panel"""
+    try:
+        with open('data/feedback.json', 'r') as f:
+            feedback_data = json.load(f)
+        return jsonify(feedback_data)
+    except FileNotFoundError:
+        return jsonify([])
+
 # Progress Tracking API Endpoints
 @app.route('/api/progress', methods=['GET'])
 def get_progress():
