@@ -52,14 +52,9 @@
     <div class="row" id="moduleList">
         {% for module in courses.modules %}
         <div class="col-lg-4 col-md-6 mb-4 module-card" data-module-id="{{ loop.index0 }}" data-title="{{ module.title|lower }}">
-            <div class="card h-100 position-relative">
-                <!-- Bookmark Button -->
-                <button class="btn btn-outline-warning btn-sm position-absolute bookmark-btn" data-module-id="{{ loop.index0 }}" style="top: 0.5rem; right: 0.5rem; z-index: 10;">
-                    <i class="bi bi-star"></i>
-                </button>
-
-                <div class="card-body" style="padding-top: 2.5rem;">
-                    <h5 class="card-title" style="padding-right: 2rem;">{{ module.title }}</h5>
+            <div class="card h-100">
+                <div class="card-body">
+                    <h5 class="card-title">{{ module.title }}</h5>
                     <p class="card-text">{{ module.description or 'No description available' }}</p>
                     
                     <!-- Module Info -->
