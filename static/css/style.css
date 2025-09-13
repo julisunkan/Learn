@@ -80,17 +80,177 @@ body {
 
 /* Module cards */
 .module-card {
-  transition: var(--transition);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: fadeInUp 0.6s ease-out forwards;
+  opacity: 0;
+  transform: translateY(30px);
+}
+
+.module-card:nth-child(1) { animation-delay: 0.1s; }
+.module-card:nth-child(2) { animation-delay: 0.2s; }
+.module-card:nth-child(3) { animation-delay: 0.3s; }
+.module-card:nth-child(4) { animation-delay: 0.4s; }
+.module-card:nth-child(5) { animation-delay: 0.5s; }
+.module-card:nth-child(6) { animation-delay: 0.6s; }
+
+@keyframes fadeInUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .module-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow);
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 12px 25px rgba(0,0,0,0.15);
 }
 
 .module-card .card {
-  border-radius: var(--border-radius);
-  border: 1px solid rgba(0,0,0,0.125);
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  overflow: hidden;
+  position: relative;
+}
+
+.module-card:nth-child(2n) .card {
+  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+}
+
+.module-card:nth-child(3n) .card {
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+}
+
+.module-card:nth-child(4n) .card {
+  background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+}
+
+.module-card:nth-child(5n) .card {
+  background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);
+}
+
+.module-card:nth-child(6n) .card {
+  background: linear-gradient(135deg, #a8edea 0%, #fed6e3 100%);
+  color: #333;
+}
+
+/* Card content styling for better readability */
+.module-card .card-body {
+  position: relative;
+  z-index: 2;
+}
+
+.module-card .card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.1);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.module-card:hover .card::before {
+  opacity: 1;
+}
+
+.module-card .card-title {
+  font-weight: 600;
+  margin-bottom: 0.75rem;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.module-card .card-text {
+  opacity: 0.95;
+  line-height: 1.5;
+}
+
+.module-card .btn-primary {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.module-card .btn-primary:hover {
+  background: rgba(255, 255, 255, 0.3);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-2px);
+}
+
+.module-card .text-muted {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+.module-card:nth-child(6n) .text-muted {
+  color: rgba(51, 51, 51, 0.7) !important;
+}
+
+/* Progress bar enhancements */
+.module-card .progress {
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.module-card .progress-bar {
+  background: linear-gradient(90deg, rgba(255,255,255,0.8), rgba(255,255,255,1));
+  animation: progressPulse 2s ease-in-out infinite;
+}
+
+@keyframes progressPulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+/* Bookmark button styling */
+.module-card .bookmark-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.module-card .bookmark-btn:hover {
+  background: rgba(255, 193, 7, 0.9);
+  border-color: #ffc107;
+  transform: scale(1.1);
+}
+
+.module-card .bookmark-btn.active {
+  background: #ffc107;
+  border-color: #ffc107;
+  color: #000;
+}
+
+/* Grid alignment improvements */
+#moduleList {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+}
+
+#moduleList .module-card {
+  display: flex;
+  margin-bottom: 1.5rem;
+}
+
+#moduleList .module-card .card {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+#moduleList .module-card .card-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
 }
 
 /* Progress bars */
