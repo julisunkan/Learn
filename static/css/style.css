@@ -35,10 +35,40 @@ body {
   color: var(--text-color) !important;
 }
 
-[data-theme="dark"] .card {
+/* Apply dark mode only to non-module cards */
+[data-theme="dark"] .card:not(.module-card .card) {
   background-color: var(--card-bg) !important;
   border-color: var(--border-color) !important;
   color: var(--text-color) !important;
+}
+
+/* Keep module cards colorful in dark mode */
+[data-theme="dark"] .module-card .card {
+  /* Preserve gradient backgrounds and white text */
+  color: white !important;
+}
+
+[data-theme="dark"] .module-card:nth-child(6n) .card {
+  /* For the light pastel gradient, keep dark text readable */
+  color: #333 !important;
+}
+
+[data-theme="dark"] .module-card .card-title {
+  color: inherit !important;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+[data-theme="dark"] .module-card .card-text {
+  color: inherit !important;
+  opacity: 0.95;
+}
+
+[data-theme="dark"] .module-card .text-muted {
+  color: rgba(255, 255, 255, 0.8) !important;
+}
+
+[data-theme="dark"] .module-card:nth-child(6n) .text-muted {
+  color: rgba(51, 51, 51, 0.7) !important;
 }
 
 [data-theme="dark"] .navbar {
