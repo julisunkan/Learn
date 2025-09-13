@@ -1,24 +1,16 @@
 {
     "modules": [
         {
-            "title": "Welcome to the Tutorial Platform",
-            "description": "An introduction to the tutorial platform and its features",
-            "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
-            "duration": 5,
             "content_file": "welcome.html",
-            "resources": [
-                {
-                    "name": "Platform Guide (PDF)",
-                    "url": "/static/resources/platform-guide.pdf"
-                }
-            ],
+            "description": "An introduction to the tutorial platform and its features",
+            "duration": 5,
             "quiz": {
                 "questions": [
                     {
                         "question": "Which key combination allows you to navigate between modules?",
                         "options": [
-                            "← → Arrow keys",
-                            "WASD keys", 
+                            "\u2190 \u2192 Arrow keys",
+                            "WASD keys",
                             "Tab and Shift+Tab",
                             "Page Up/Page Down"
                         ],
@@ -45,7 +37,16 @@
                         "correct_answer": 1
                     }
                 ]
-            }
+            },
+            "resources": [
+                {
+                    "name": "Resources",
+                    "url": "https://www.kea.nu/files/textbooks/humblesec/hacking_artofexploitation_2ndedition.pdf"
+                }
+            ],
+            "title": "Welcome to the Tutorial Platform",
+            "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+            "content": "<!doctype html>\n<html lang=en>\n<title>404 Not Found</title>\n<h1>Not Found</h1>\n<p>The requested URL was not found on the server. If you entered the URL manually please check your spelling and try again.</p>\n"
         }
     ]
 }
