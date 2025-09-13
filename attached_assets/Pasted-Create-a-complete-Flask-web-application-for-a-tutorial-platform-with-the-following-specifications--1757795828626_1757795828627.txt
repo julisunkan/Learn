@@ -1,0 +1,86 @@
+Create a complete Flask web application for a tutorial platform with the following specifications:
+
+---
+
+📌 GENERAL FEATURES:
+
+- No login or registration for users.
+- A **hidden admin panel**, accessible via a secret URL (e.g., `/admin`), without traditional authentication.
+- Tutorial content consists of modules, each with:
+  - A title
+  - An HTML file (for text and content)
+  - An MP4 video (using HTML5 `<video>` player), admin enters video url
+  - Estimated duration in minutes
+  - Optional downloadable resources (PDFs, ZIPs, etc.)
+- Courses are stored in a `data/courses.json` file.
+- HTML and video files are stored in `data/modules/`.
+
+---
+
+🧰 ADMIN PANEL FEATURES:
+
+1. **Upload new modules** (video + HTML + optional resources).
+2. **Reorder modules** via drag-and-drop (SortableJS or similar).
+3. **Edit site configuration** (title, description, primary color, secondary color, text color, font size, font name e.t.c) stored in `config.json`.
+4. **Preview module content** before saving.
+5. **Import/export full course** data as a ZIP file (includes config, courses.json, videos, HTMLs).
+6. **Autosave unsaved form data** using localStorage to prevent data loss.
+7. **Simple passcode protection** (optional) stored in `config.json`.
+
+---
+
+🎓 USER-FACING FEATURES:
+
+8. **Course index page** (`/`) with list of modules and a global **progress bar**.
+9. Each module page shows:
+   - HTML5 video player
+   - HTML content
+   - Downloadable resources
+   - Navigation (Previous/Next)
+   - Estimated completion time
+10. Local **progress tracking** using `localStorage` (each completed module saved).
+11. Ability to **manually mark modules complete** via a checkbox.
+12. **Search bar** to filter modules by title or keywords.
+13. **Dark mode toggle**, with preference saved in `localStorage`.
+14. **User notes section** per module, stored in `localStorage`.
+15. **Bookmark/star modules** to view later.
+16. **Keyboard navigation**: Arrow keys move between modules.
+17. **Feedback form** for each module (writes to a local `feedback.json` file or just shows a mock form).
+18. **Simple quizzes** per module (e.g., 2–3 multiple choice questions with correct answers stored in module metadata).
+19. On completion of all modules, show a **"Download Certificate"** button that generates a basic downloadable certificate (PDF or image).
+
+---
+
+📂 FILE STRUCTURE EXAMPLE:
+
+- app.py
+- config.json
+- data/
+  - courses.json
+  - modules/
+    - video1.mp4
+    - content1.html
+    - quiz1.json
+- templates/
+  - index.html
+  - course.html
+  - admin.html
+- static/
+  - css/
+  - js/
+  - resources/ (for PDFs etc.)
+- utils.py
+- requirements.txt
+
+---
+
+📦 EXTRA REQUIREMENTS:
+
+- Use **Flask 2.x**
+- Include `markdown` support optionally (render `.md` to HTML in admin).
+- Admin can enter quiz questions via form.
+- Use **Bootstrap** or simple CSS for layout.
+- Use `localStorage` for all client-side progress, notes, bookmarks, dark mode.
+- Make it easy to extend in future.
+
+Generate all required files, routes, templates, and logic to run this as a fully functional local Flask app. Make it runnable directly in Replit (with working file uploads, static folder, and video playback).
