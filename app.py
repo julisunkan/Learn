@@ -89,17 +89,44 @@ def get_all_user_progress(user_fingerprint):
     return user_progress
 
 def generate_user_fingerprint(request):
-    """Generate a unique fingerprint based on IP address, user agent, and other identifying information"""
-    ip = request.environ.get('HTTP_X_FORWARDED_FOR', request.remote_addr)
-    user_agent = request.headers.get('User-Agent', '')
-    accept_language = request.headers.get('Accept-Language', '')
-    accept_encoding = request.headers.get('Accept-Encoding', '')
+    """Generate a unique user identifier with UUID cookies as primary method, IP/UA as fallback"""
+    import uuid
     
-    # Create a fingerprint hash from available data
-    fingerprint_data = f"{ip}:{user_agent}:{accept_language}:{accept_encoding}"
-    fingerprint = hashlib.sha256(fingerprint_data.encode()).hexdigest()
+    # Try to get existing user ID from cookie first  
+    user_id = request.cookies.get('user_id')
     
-    return fingerprint
+    if user_id:
+        # Validate that it's a proper UUID format
+        try:
+            uuid.UUID(user_id)
+            return user_id
+        except ValueError:
+            # Invalid UUID format, fall back to generating new one
+            pass
+    
+    # No valid cookie found, generate new UUID for this user
+    new_user_id = str(uuid.uuid4())
+    # Store in session so we can set cookie in response
+    session['new_user_id'] = new_user_id
+    return new_user_id
+
+def set_user_id_cookie(response, user_id):
+    """Set the user_id cookie in the response for persistence"""
+    response.set_cookie('user_id', user_id, 
+                       max_age=10*365*24*60*60,  # 10 years 
+                       secure=False,  # Set to True in production with HTTPS
+                       httponly=True,  # Prevent JavaScript access
+                       samesite='Lax')
+    return response
+
+@app.after_request
+def after_request(response):
+    \"\"\"Set user ID cookie if new user was created during request\"\"\"
+    if 'new_user_id' in session:
+        response = set_user_id_cookie(response, session['new_user_id'])
+        # Clear the session flag
+        session.pop('new_user_id', None)
+    return response
 
 def load_config():
     """Load site configuration from config.json"""
@@ -414,18 +441,21 @@ def generate_certificate():
     courses = load_courses()
     total_modules = len(courses['modules'])
     
-    # Get completion claim from query param
-    completed_param = request.args.get('completed', '')
-    if not completed_param:
-        return "Please complete all modules before generating certificate", 400
+    # Verify completion status using actual server-stored progress
+    user_fingerprint = generate_user_fingerprint(request)
+    user_progress = get_all_user_progress(user_fingerprint)
     
-    try:
-        completed_ids = [int(x) for x in completed_param.split(',') if x.strip()]
-        # Verify all modules are claimed as completed
-        if len(completed_ids) != total_modules or set(completed_ids) != set(range(total_modules)):
-            return "All modules must be completed to generate certificate", 400
-    except ValueError:
-        return "Invalid completion data", 400
+    # Count completed modules from server data
+    completed_modules = []
+    for module_id in range(total_modules):
+        module_progress = user_progress.get(str(module_id), {})
+        if module_progress.get('completed', False):
+            completed_modules.append(module_id)
+    
+    # Verify all modules are actually completed on server
+    if len(completed_modules) != total_modules:
+        missing_count = total_modules - len(completed_modules)
+        return f"Please complete all {total_modules} modules before generating certificate. You have completed {len(completed_modules)}, missing {missing_count} modules.", 400
     
     # Create a PDF certificate
     buffer = io.BytesIO()

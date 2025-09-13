@@ -1,16 +1,63 @@
 // Main JavaScript for Tutorial Platform
 
-// Global variables
-let completedModules = JSON.parse(localStorage.getItem('completed_modules') || '[]');
-let bookmarkedModules = JSON.parse(localStorage.getItem('bookmarked_modules') || '[]');
+// Global variables for user progress
+let completedModules = [];
+let bookmarkedModules = [];
+let userProgress = {};
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', function() {
-    initializeProgress();
-    initializeSearch();
-    initializeKeyboardNavigation();
-    initializeBookmarks();
+    initializeApp();
 });
+
+// Initialize application by loading progress from server
+async function initializeApp() {
+    try {
+        await loadProgressFromServer();
+        initializeProgress();
+        initializeSearch();
+        initializeKeyboardNavigation();
+        initializeBookmarks();
+    } catch (error) {
+        console.error('Failed to initialize app:', error);
+        // Fall back to localStorage if server fails
+        loadProgressFromLocalStorage();
+        initializeProgress();
+        initializeSearch();
+        initializeKeyboardNavigation();
+        initializeBookmarks();
+    }
+}
+
+// Load progress from server
+async function loadProgressFromServer() {
+    const response = await fetch('/api/progress');
+    if (!response.ok) {
+        throw new Error('Failed to load progress from server');
+    }
+    
+    userProgress = await response.json();
+    
+    // Extract completed and bookmarked modules
+    completedModules = [];
+    bookmarkedModules = [];
+    
+    Object.values(userProgress).forEach(progress => {
+        const moduleId = progress.module_id;
+        if (progress.completed) {
+            completedModules.push(moduleId);
+        }
+        if (progress.bookmarked) {
+            bookmarkedModules.push(moduleId);
+        }
+    });
+}
+
+// Fallback to localStorage for backward compatibility
+function loadProgressFromLocalStorage() {
+    completedModules = JSON.parse(localStorage.getItem('completed_modules') || '[]');
+    bookmarkedModules = JSON.parse(localStorage.getItem('bookmarked_modules') || '[]');
+}
 
 
 // Progress Tracking Functions
@@ -30,20 +77,48 @@ function initializeProgress() {
     updateProgressDisplay();
 }
 
-function toggleModuleCompletion(moduleId) {
+async function toggleModuleCompletion(moduleId) {
     const index = completedModules.indexOf(moduleId);
+    const completed = index === -1;
     
-    if (index === -1) {
-        completedModules.push(moduleId);
-    } else {
-        completedModules.splice(index, 1);
+    try {
+        // Update on server first
+        const response = await fetch('/api/progress', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                module_id: moduleId,
+                completed: completed
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to update progress on server');
+        }
+        
+        // Update local state if server update succeeded
+        if (completed) {
+            completedModules.push(moduleId);
+        } else {
+            completedModules.splice(index, 1);
+        }
+        
+        // Also update localStorage as fallback
+        localStorage.setItem('completed_modules', JSON.stringify(completedModules));
+        
+        updateProgressDisplay();
+        checkCourseCompletion();
+        
+    } catch (error) {
+        console.error('Error updating module completion:', error);
+        // Revert checkbox state if update failed
+        const checkbox = document.querySelector(`[data-module-id=\"${moduleId}\"]`);
+        if (checkbox) {
+            checkbox.checked = !completed;
+        }
     }
-    
-    localStorage.setItem('completed_modules', JSON.stringify(completedModules));
-    updateProgressDisplay();
-    
-    // Check if all modules are completed for certificate
-    checkCourseCompletion();
 }
 
 function updateProgressDisplay() {
@@ -178,16 +253,40 @@ function initializeBookmarks() {
     });
 }
 
-function toggleBookmark(moduleId) {
+async function toggleBookmark(moduleId) {
     const index = bookmarkedModules.indexOf(moduleId);
+    const bookmarked = index === -1;
     
-    if (index === -1) {
-        bookmarkedModules.push(moduleId);
-    } else {
-        bookmarkedModules.splice(index, 1);
+    try {
+        // Update on server first
+        const response = await fetch('/api/progress', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                module_id: moduleId,
+                bookmarked: bookmarked
+            })
+        });
+        
+        if (!response.ok) {
+            throw new Error('Failed to update bookmark on server');
+        }
+        
+        // Update local state if server update succeeded
+        if (bookmarked) {
+            bookmarkedModules.push(moduleId);
+        } else {
+            bookmarkedModules.splice(index, 1);
+        }
+        
+        // Also update localStorage as fallback
+        localStorage.setItem('bookmarked_modules', JSON.stringify(bookmarkedModules));
+        
+    } catch (error) {
+        console.error('Error updating bookmark:', error);
     }
-    
-    localStorage.setItem('bookmarked_modules', JSON.stringify(bookmarkedModules));
 }
 
 function updateBookmarkButton(button, moduleId) {
