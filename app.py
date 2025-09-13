@@ -170,7 +170,12 @@ def index():
     """Main course index page"""
     config = load_config()
     courses = load_courses()
-    return render_template('index.html', config=config, courses=courses)
+    
+    # Load user progress based on device fingerprint
+    user_fingerprint = generate_user_fingerprint(request)
+    user_progress = get_all_user_progress(user_fingerprint)
+    
+    return render_template('index.html', config=config, courses=courses, progress=user_progress)
 
 @app.route('/module/<int:module_id>')
 def module_detail(module_id):
@@ -198,13 +203,18 @@ def module_detail(module_id):
     # Load quiz if exists
     quiz_data = module.get('quiz', {})
     
+    # Load user progress for this module
+    user_fingerprint = generate_user_fingerprint(request)
+    module_progress = get_user_progress(user_fingerprint, module_id)
+    
     return render_template('course.html', 
                          config=config, 
                          module=module, 
                          module_id=module_id,
                          total_modules=len(courses['modules']),
                          html_content=html_content,
-                         quiz=quiz_data)
+                         quiz=quiz_data,
+                         progress=module_progress)
 
 @app.route('/admin')
 def admin_login():
