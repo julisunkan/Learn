@@ -486,6 +486,11 @@ if __name__ == '__main__':
     os.makedirs('static/resources', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     
+    # Initialize database tables
+    with app.app_context():
+        db.create_all()
+        print("Database tables initialized successfully.")
+    
     # Only enable debug in development
     debug_mode = os.environ.get('FLASK_ENV') == 'development'
     app.run(host='0.0.0.0', port=5000, debug=debug_mode)
