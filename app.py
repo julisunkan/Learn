@@ -9,7 +9,8 @@ from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.colors import blue, black
 import markdown
-from typing import Optional
+from typing import Optional, Union
+from flask import Response
 import hashlib
 import time
 
@@ -275,7 +276,7 @@ def verify_passcode():
 def admin_config():
     """Handle site configuration"""
     if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401
+        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     if request.method == 'POST':
         config = request.json or {}
@@ -284,11 +285,11 @@ def admin_config():
     else:
         return jsonify(load_config())
 
-@app.route('/admin/modules', methods=['GET', 'POST', 'PUT', 'DELETE'])
+@app.route('/admin/modules', methods=['GET', 'POST', 'PUT', 'DELETE'])  # type: ignore
 def admin_modules():
     """Handle module management"""
     if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401
+        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     courses = load_courses()
     
@@ -325,7 +326,7 @@ def admin_modules():
     elif request.method == 'DELETE':
         # Delete module
         module_id = (request.json or {}).get('module_id')
-        if 0 <= module_id < len(courses['modules']):
+        if module_id is not None and isinstance(module_id, int) and 0 <= module_id < len(courses['modules']):
             # Delete associated files
             module = courses['modules'][module_id]
             if 'content_file' in module:
@@ -343,7 +344,7 @@ def admin_modules():
 def upload_resource():
     """Handle file uploads for resources"""
     if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401
+        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "No file selected"})
@@ -542,7 +543,7 @@ def export_course():
 def import_course():
     """Import course from ZIP file"""
     if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401
+        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "No file selected"})
@@ -553,54 +554,63 @@ def import_course():
     
     if file and file.filename and file.filename.lower().endswith('.zip'):
         try:
-            with zipfile.ZipFile(file, 'r') as zip_file:
-                # Safe extraction with strict path validation
-                base_dir = os.path.abspath('.')
-                allowed_files = {
-                    'config.json': base_dir,
-                    'data/courses.json': base_dir
-                }
-                allowed_dirs = {
-                    'data/modules/': os.path.join(base_dir, 'data', 'modules'),
-                    'static/resources/': os.path.join(base_dir, 'static', 'resources')
-                }
-                
-                for member in zip_file.infolist():
-                    # Skip directories and files with .. segments
-                    if member.is_dir() or '..' in member.filename:
-                        continue
+            # Create a temporary file to work with ZipFile
+            import tempfile
+            with tempfile.NamedTemporaryFile() as temp_file:
+                file.save(temp_file.name)
+                with zipfile.ZipFile(temp_file.name, 'r') as zip_file:
+                    # Safe extraction with strict path validation
+                    base_dir = os.path.abspath('.')
+                    allowed_files = {
+                        'config.json': base_dir,
+                        'data/courses.json': base_dir
+                    }
+                    allowed_dirs = {
+                        'data/modules/': os.path.join(base_dir, 'data', 'modules'),
+                        'static/resources/': os.path.join(base_dir, 'static', 'resources')
+                    }
                     
-                    # Normalize member filename
-                    member_name = member.filename.replace('\\', '/')
-                    
-                    # Check allowed files
-                    if member_name in allowed_files:
-                        target_dir = allowed_files[member_name]
-                        dest_path = os.path.join(target_dir, os.path.basename(member_name))
-                    else:
-                        # Check allowed directories
-                        target_dir = None
-                        for prefix, prefix_dir in allowed_dirs.items():
-                            if member_name.startswith(prefix):
-                                # Extract relative path after prefix
-                                rel_path = member_name[len(prefix):]
-                                if '/' not in rel_path:  # Only allow files directly in the target dir
-                                    dest_path = os.path.join(prefix_dir, secure_filename(rel_path))
-                                    target_dir = prefix_dir
-                                    break
-                        
-                        if not target_dir:
+                    for member in zip_file.infolist():
+                        # Skip directories and files with .. segments
+                        if member.is_dir() or '..' in member.filename:
                             continue
-                    
-                    # Final security check - ensure dest is within target
-                    dest_path = os.path.abspath(dest_path)
-                    if not dest_path.startswith(os.path.abspath(target_dir) + os.sep):
-                        continue
-                    
-                    # Create directory and extract
-                    os.makedirs(os.path.dirname(dest_path), exist_ok=True)
-                    with zip_file.open(member) as source, open(dest_path, 'wb') as target:
-                        target.write(source.read())
+                        
+                        # Normalize member filename
+                        member_name = member.filename.replace('\\', '/')
+                        
+                        # Check allowed files
+                        dest_path = None
+                        target_dir = None
+                        
+                        if member_name in allowed_files:
+                            target_dir = allowed_files[member_name]
+                            dest_path = os.path.join(target_dir, os.path.basename(member_name))
+                        else:
+                            # Check allowed directories
+                            for prefix, prefix_dir in allowed_dirs.items():
+                                if member_name.startswith(prefix):
+                                    # Extract relative path after prefix
+                                    rel_path = member_name[len(prefix):]
+                                    if '/' not in rel_path:  # Only allow files directly in the target dir
+                                        dest_path = os.path.join(prefix_dir, secure_filename(rel_path))
+                                        target_dir = prefix_dir
+                                        break
+                            
+                            if not target_dir or dest_path is None:
+                                continue
+                        
+                        # Final security check - ensure dest is within target
+                        if dest_path is not None and target_dir is not None:
+                            dest_path = os.path.abspath(dest_path)
+                            if not dest_path.startswith(os.path.abspath(target_dir) + os.sep):
+                                continue
+                        else:
+                            continue
+                        
+                        # Create directory and extract
+                        os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                        with zip_file.open(member) as source, open(dest_path, 'wb') as target:
+                            target.write(source.read())
             
             return jsonify({"success": True})
         except Exception as e:
@@ -675,7 +685,7 @@ def service_worker():
 def upload_pwa_icon():
     """Handle PWA icon uploads"""
     if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401
+        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "No file selected"})
