@@ -370,6 +370,72 @@ def upload_resource():
     
     return jsonify({"success": False, "error": "Invalid file type"})
 
+@app.route('/admin/upload_pwa_icon', methods=['POST'])
+def upload_pwa_icon():
+    """Handle PWA icon upload and generate all required sizes"""
+    if not session.get('admin_authenticated', False):
+        return jsonify({"error": "Authentication required"}), 401  # type: ignore
+    
+    if 'icon' not in request.files:
+        return jsonify({"success": False, "error": "No icon file selected"})
+    
+    file = request.files['icon']
+    if file.filename == '':
+        return jsonify({"success": False, "error": "No icon file selected"})
+    
+    if not file or not file.filename or not file.filename.lower().endswith(('.png', '.jpg', '.jpeg')):
+        return jsonify({"success": False, "error": "Please upload a PNG or JPEG image"})
+    
+    try:
+        from PIL import Image
+        
+        # Open and validate the uploaded image
+        image = Image.open(file)
+        
+        # Convert to RGBA for transparency support
+        if image.mode != 'RGBA':
+            image = image.convert('RGBA')
+        
+        # PWA icon sizes according to guidelines
+        pwa_sizes = [192, 512]
+        
+        # Ensure PWA icons directory exists
+        pwa_dir = 'static/pwa-icons'
+        os.makedirs(pwa_dir, exist_ok=True)
+        
+        generated_icons = []
+        
+        for size in pwa_sizes:
+            # Generate regular icon
+            regular_icon = image.resize((size, size), Image.Resampling.LANCZOS)
+            regular_filename = f"icon-{size}x{size}.png"
+            regular_path = os.path.join(pwa_dir, regular_filename)
+            regular_icon.save(regular_path, 'PNG', optimize=True)
+            generated_icons.append(f"Regular {size}x{size}")
+            
+            # Generate maskable icon (with safe zone - scale down to 80% and center)
+            maskable_icon = Image.new('RGBA', (size, size), (0, 0, 0, 0))
+            safe_size = int(size * 0.8)  # 80% for safe zone
+            safe_icon = image.resize((safe_size, safe_size), Image.Resampling.LANCZOS)
+            
+            # Center the safe icon in the maskable canvas
+            offset = (size - safe_size) // 2
+            maskable_icon.paste(safe_icon, (offset, offset))
+            
+            maskable_filename = f"icon-{size}x{size}-maskable.png"
+            maskable_path = os.path.join(pwa_dir, maskable_filename)
+            maskable_icon.save(maskable_path, 'PNG', optimize=True)
+            generated_icons.append(f"Maskable {size}x{size}")
+        
+        return jsonify({
+            "success": True, 
+            "message": f"Generated {len(generated_icons)} PWA icons successfully",
+            "icons": generated_icons
+        })
+        
+    except Exception as e:
+        return jsonify({"success": False, "error": f"Error processing image: {str(e)}"})
+
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():
     """Handle feedback submission"""
