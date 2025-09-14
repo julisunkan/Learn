@@ -121,7 +121,7 @@ def set_user_id_cookie(response, user_id):
 
 @app.after_request
 def after_request(response):
-    \"\"\"Set user ID cookie if new user was created during request\"\"\"
+    """Set user ID cookie if new user was created during request"""
     if 'new_user_id' in session:
         response = set_user_id_cookie(response, session['new_user_id'])
         # Clear the session flag
