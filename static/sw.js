@@ -1,6 +1,6 @@
 // Enhanced Service Worker for Tutorial Platform PWA
 // Version-based cache management
-const CACHE_VERSION = 'v2';
+const CACHE_VERSION = 'v3';
 const STATIC_CACHE = `tutorial-platform-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `tutorial-platform-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `tutorial-platform-api-${CACHE_VERSION}`;
