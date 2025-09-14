@@ -13,6 +13,8 @@ from typing import Optional, Union
 from flask import Response
 import hashlib
 import time
+import requests
+import urllib.parse
 
 app = Flask(__name__)
 # Require secure session secret
@@ -534,6 +536,53 @@ def save_quiz_result():
     progress_update = {'quiz_score': score}
     updated_progress = set_user_progress(user_fingerprint, module_id, progress_update)
     return jsonify({"success": True, "progress": updated_progress})
+
+@app.route('/download_resource')
+def download_resource():
+    """Server-side download proxy for external resources"""
+    resource_url = request.args.get('url')
+    resource_name = request.args.get('name', 'resource')
+    
+    if not resource_url:
+        return "Missing resource URL", 400
+    
+    try:
+        # Validate URL
+        parsed_url = urllib.parse.urlparse(resource_url)
+        if not parsed_url.scheme or not parsed_url.netloc:
+            return "Invalid URL", 400
+        
+        # Fetch the resource
+        response = requests.get(resource_url, timeout=30, stream=True)
+        response.raise_for_status()
+        
+        # Determine content type and filename
+        content_type = response.headers.get('Content-Type', 'application/octet-stream')
+        content_disposition = response.headers.get('Content-Disposition', '')
+        
+        # Extract filename from URL or content-disposition header
+        if 'filename=' in content_disposition:
+            filename = content_disposition.split('filename=')[-1].strip('"')
+        else:
+            filename = os.path.basename(parsed_url.path) or f"{resource_name}.pdf"
+        
+        # Create a BytesIO buffer to store the content
+        buffer = io.BytesIO()
+        for chunk in response.iter_content(chunk_size=8192):
+            buffer.write(chunk)
+        buffer.seek(0)
+        
+        return send_file(
+            buffer,
+            as_attachment=True,
+            download_name=filename,
+            mimetype=content_type
+        )
+        
+    except requests.RequestException as e:
+        return f"Error downloading resource: {str(e)}", 500
+    except Exception as e:
+        return f"Server error: {str(e)}", 500
 
 @app.route('/generate_certificate')
 def generate_certificate():
