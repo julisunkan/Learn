@@ -122,11 +122,17 @@ def set_user_id_cookie(response, user_id):
 
 @app.after_request
 def after_request(response):
-    """Set user ID cookie if new user was created during request"""
+    """Set user ID cookie if new user was created during request and add cache control headers"""
     if 'new_user_id' in session:
         response = set_user_id_cookie(response, session['new_user_id'])
         # Clear the session flag
         session.pop('new_user_id', None)
+    
+    # Add cache control headers to prevent caching issues
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    
     return response
 
 def load_config():
