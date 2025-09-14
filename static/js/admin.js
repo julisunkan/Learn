@@ -73,6 +73,9 @@ function initializeAdminDashboard() {
             importCourse();
         });
     }
+    
+    // Initialize PWA icon management
+    initializePwaIconManagement();
 }
 
 // Module Management Functions
@@ -511,6 +514,121 @@ function updateModuleOrder() {
         showAlert('Error updating module order.', 'danger');
         loadModules(); // Reload to reset order
     });
+}
+
+// PWA Icon Management Functions
+function initializePwaIconManagement() {
+    const pwaIconForm = document.getElementById('uploadPwaIconForm');
+    if (pwaIconForm) {
+        pwaIconForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            uploadPwaIcon();
+        });
+    }
+    
+    // Load current PWA icons
+    loadCurrentPwaIcons();
+}
+
+function uploadPwaIcon() {
+    const form = document.getElementById('uploadPwaIconForm');
+    const fileInput = document.getElementById('pwaIconFile');
+    const statusDiv = document.getElementById('pwaUploadStatus');
+    const progressBar = statusDiv.querySelector('.progress-bar');
+    
+    if (!fileInput.files[0]) {
+        showAlert('Please select an icon file to upload.', 'warning');
+        return;
+    }
+    
+    // Validate file type
+    const file = fileInput.files[0];
+    const validTypes = ['image/png', 'image/jpeg', 'image/jpg'];
+    if (!validTypes.includes(file.type)) {
+        showAlert('Please upload a PNG or JPEG image file.', 'warning');
+        return;
+    }
+    
+    // Show progress
+    statusDiv.style.display = 'block';
+    progressBar.style.width = '10%';
+    
+    const formData = new FormData();
+    formData.append('icon', file);
+    
+    fetch('/admin/upload_pwa_icon', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        progressBar.style.width = '70%';
+        return response.json();
+    })
+    .then(data => {
+        progressBar.style.width = '100%';
+        
+        if (data.success) {
+            showAlert(data.message + ' - ' + data.icons.join(', '), 'success');
+            form.reset();
+            loadCurrentPwaIcons(); // Refresh icons display
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error uploading PWA icon.', 'danger');
+    })
+    .finally(() => {
+        // Hide progress after delay
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+            progressBar.style.width = '0%';
+        }, 2000);
+    });
+}
+
+function loadCurrentPwaIcons() {
+    const iconsContainer = document.getElementById('currentPwaIcons');
+    if (!iconsContainer) return;
+    
+    // Standard PWA icon filenames
+    const iconFiles = [
+        { name: 'icon-192x192.png', label: '192×192 Regular', type: 'regular' },
+        { name: 'icon-192x192-maskable.png', label: '192×192 Maskable', type: 'maskable' },
+        { name: 'icon-512x512.png', label: '512×512 Regular', type: 'regular' },
+        { name: 'icon-512x512-maskable.png', label: '512×512 Maskable', type: 'maskable' }
+    ];
+    
+    let iconsHtml = '';
+    
+    iconFiles.forEach(icon => {
+        const iconPath = `/static/pwa-icons/${icon.name}`;
+        const badgeClass = icon.type === 'maskable' ? 'bg-success' : 'bg-primary';
+        
+        iconsHtml += `
+            <div class="col-md-3 col-sm-6 mb-3">
+                <div class="card">
+                    <div class="card-body text-center p-2">
+                        <img src="${iconPath}" alt="${icon.label}" class="img-fluid mb-2" 
+                             style="max-width: 80px; height: auto; border: 1px solid #dee2e6; border-radius: 8px;"
+                             onerror="this.src='data:image/svg+xml,<svg xmlns=\\"http://www.w3.org/2000/svg\\" width=\\"80\\" height=\\"80\\" viewBox=\\"0 0 80 80\\"><rect width=\\"80\\" height=\\"80\\" fill=\\"%23f8f9fa\\"/><text x=\\"50%\\" y=\\"50%\\" text-anchor=\\"middle\\" dy=\\".3em\\" font-family=\\"Arial\\" font-size=\\"12\\" fill=\\"%236c757d\\">No Icon</text></svg>'">
+                        <div class="small">
+                            <span class="badge ${badgeClass} mb-1">${icon.type}</span><br>
+                            <strong>${icon.label}</strong>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    iconsContainer.innerHTML = iconsHtml;
+}
+
+function refreshPwaIcons() {
+    loadCurrentPwaIcons();
+    showAlert('PWA icons refreshed!', 'info');
 }
 
 // Configuration Functions
