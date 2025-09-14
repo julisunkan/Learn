@@ -15,6 +15,10 @@ import logging
 import socket
 import ipaddress
 from typing import Dict, List, Tuple, Optional
+try:
+    from bleach.css_sanitizer import CSSSanitizer
+except ImportError:
+    CSSSanitizer = None
 
 # Configure logging for debugging
 logging.basicConfig(level=logging.DEBUG)
@@ -62,10 +66,36 @@ class WebContentImporter:
                            'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'pre', 'code', 'div', 'span']
         self.allowed_attributes = {
             'a': ['href', 'title'],
-            'img': ['src', 'alt', 'title', 'width', 'height'],
-            'div': ['class'],
-            'span': ['class']
+            'img': ['src', 'alt', 'title', 'width', 'height', 'style', 'loading'],
+            'div': ['class', 'style'],
+            'span': ['class', 'style'],
+            'ul': ['style'],
+            'ol': ['style'],
+            'p': ['style'],
+            'h1': ['style'],
+            'h2': ['style'], 
+            'h3': ['style'],
+            'h4': ['style'],
+            'h5': ['style'],
+            'h6': ['style']
         }
+        
+        # CSS sanitizer for safe styling
+        if CSSSanitizer:
+            self.css_sanitizer = CSSSanitizer(
+                allowed_css_properties=[
+                    'max-width', 'width', 'height', 'margin', 'padding',
+                    'display', 'text-align', 'float', 'clear',
+                    'border-radius', 'box-shadow', 'padding-left'
+                ],
+                allowed_css_keywords=[
+                    'auto', 'block', 'center', 'left', 'right', 'both',
+                    'lazy', 'none', 'solid', 'rgba', 'px', 'em', 'rem', '%'
+                ],
+                strip_whitespace=True
+            )
+        else:
+            self.css_sanitizer = None
     
     def _validate_url_security(self, url: str) -> None:
         """
@@ -226,9 +256,18 @@ class WebContentImporter:
                 # Create basic HTML structure with images
                 processed_html = self._create_html_with_images(main_text, downloaded_images)
             
-            # Sanitize HTML
-            sanitized_html = bleach.clean(processed_html, tags=self.allowed_tags, 
-                                        attributes=self.allowed_attributes, strip=True)
+            # Sanitize HTML with CSS sanitizer
+            if self.css_sanitizer:
+                sanitized_html = bleach.clean(processed_html, tags=self.allowed_tags, 
+                                            attributes=self.allowed_attributes, 
+                                            css_sanitizer=self.css_sanitizer, strip=True)
+            else:
+                # Fallback: strip all style attributes if CSS sanitizer not available
+                safe_attributes = {k: [attr for attr in v if attr != 'style'] 
+                                 for k, v in self.allowed_attributes.items()}
+                sanitized_html = bleach.clean(processed_html, tags=self.allowed_tags, 
+                                            attributes=safe_attributes, strip=True)
+                logger.warning("CSS sanitizer not available, styles have been stripped")
             
             return {
                 'text': main_text,
@@ -345,15 +384,29 @@ class WebContentImporter:
                         logger.warning(f"Error downloading {img_url}: {e}")
                         continue
                 
-                # Validate image type using magic bytes for security
+                # Validate image type and optimize using magic bytes for security
                 try:
                     from PIL import Image
-                    with Image.open(filepath) as img:
-                        # Verify it's a safe image format (not SVG or other)
-                        if img.format not in ['JPEG', 'PNG', 'GIF', 'WEBP']:
-                            os.remove(filepath)
-                            logger.warning(f"Blocked unsafe image format {img.format}: {img_url}")
-                            continue
+                    original_img = Image.open(filepath)
+                    
+                    # Verify it's a safe image format (not SVG or other)
+                    if original_img.format not in ['JPEG', 'PNG', 'GIF', 'WEBP']:
+                        original_img.close()
+                        os.remove(filepath)
+                        logger.warning(f"Blocked unsafe image format {original_img.format}: {img_url}")
+                        continue
+                    
+                    # Optimize and resize image for web display
+                    optimized_filepath = self._optimize_image(original_img, filepath)
+                    original_img.close()
+                    
+                    # If optimization created a new file, use it
+                    if optimized_filepath != filepath:
+                        if os.path.exists(filepath):
+                            os.remove(filepath)  # Remove original
+                        filepath = optimized_filepath
+                        filename = os.path.basename(optimized_filepath)
+                        
                 except Exception as e:
                     # Remove if not a valid image
                     if os.path.exists(filepath):
@@ -370,28 +423,255 @@ class WebContentImporter:
         
         return downloaded_images
     
-    def _create_html_with_images(self, text: str, images: List[str]) -> str:
-        """Create HTML content with embedded images"""
-        # Convert text to paragraphs
-        paragraphs = text.split('\n\n')
-        html_parts = []
-        
-        for i, paragraph in enumerate(paragraphs):
-            if paragraph.strip():
-                html_parts.append(f"<p>{paragraph.strip()}</p>")
+    def _optimize_image(self, img, filepath: str, max_width: int = 800, max_height: int = 600, quality: int = 85) -> str:
+        """Optimize and resize image for web display"""
+        try:
+            # Get original dimensions
+            original_width, original_height = img.size
+            
+            # Calculate new dimensions maintaining aspect ratio
+            if original_width > max_width or original_height > max_height:
+                # Calculate ratios
+                width_ratio = max_width / original_width
+                height_ratio = max_height / original_height
                 
-                # Insert images between paragraphs
-                if images and i < len(images):
-                    img_path = f"/static/resources/{images[i]}"
-                    html_parts.append(f'<img src="{img_path}" alt="Content image" style="max-width: 100%; height: auto; margin: 10px 0;" />')
+                # Use the smaller ratio to maintain aspect ratio
+                ratio = min(width_ratio, height_ratio)
+                
+                new_width = int(original_width * ratio)
+                new_height = int(original_height * ratio)
+                
+                # Resize image using high-quality resampling
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                logger.info(f"Resized image from {original_width}x{original_height} to {new_width}x{new_height}")
+            
+            # Convert to RGB if necessary (for JPEG optimization)
+            if img.mode in ('RGBA', 'P') and filepath.lower().endswith(('.jpg', '.jpeg')):
+                # Create white background for transparent images
+                background = Image.new('RGB', img.size, (255, 255, 255))
+                if img.mode == 'P':
+                    img = img.convert('RGBA')
+                background.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
+                img = background
+            
+            # Determine output format and filename
+            if filepath.lower().endswith('.png') and img.mode != 'RGBA':
+                # Convert to JPEG for better compression if no transparency
+                new_filepath = filepath.rsplit('.', 1)[0] + '_optimized.jpg'
+                img.save(new_filepath, 'JPEG', quality=quality, optimize=True)
+            elif filepath.lower().endswith(('.jpg', '.jpeg')):
+                new_filepath = filepath.rsplit('.', 1)[0] + '_optimized.jpg'
+                img.save(new_filepath, 'JPEG', quality=quality, optimize=True)
+            else:
+                # Keep original format for PNG with transparency, GIF, WEBP
+                new_filepath = filepath.rsplit('.', 1)[0] + '_optimized.' + filepath.rsplit('.', 1)[1]
+                if img.format == 'PNG':
+                    img.save(new_filepath, 'PNG', optimize=True)
+                elif img.format == 'WEBP':
+                    img.save(new_filepath, 'WEBP', quality=quality, optimize=True)
+                else:
+                    img.save(new_filepath, img.format, optimize=True)
+            
+            # Check if optimization reduced file size
+            if os.path.exists(new_filepath):
+                original_size = os.path.getsize(filepath)
+                new_size = os.path.getsize(new_filepath)
+                
+                if new_size < original_size:
+                    logger.info(f"Optimized image: {original_size} -> {new_size} bytes ({(1-new_size/original_size)*100:.1f}% reduction)")
+                    return new_filepath
+                else:
+                    # Keep original if optimization didn't help
+                    os.remove(new_filepath)
+                    logger.info("Optimization didn't reduce file size, keeping original")
+                    return filepath
+            
+            return filepath
+            
+        except Exception as e:
+            logger.warning(f"Image optimization failed: {e}, keeping original")
+            return filepath
+    
+    def _create_html_with_images(self, text: str, images: List[str]) -> str:
+        """Create well-formatted HTML content with properly embedded and styled images"""
+        # Split text into paragraphs and preserve structure
+        lines = text.split('\n')
+        formatted_parts = []
+        current_paragraph = []
         
-        # Add remaining images at the end
-        remaining_images = images[len(paragraphs):]
-        for image in remaining_images:
-            img_path = f"/static/resources/{image}"
-            html_parts.append(f'<img src="{img_path}" alt="Content image" style="max-width: 100%; height: auto; margin: 10px 0;" />')
+        i = 0
+        while i < len(lines):
+            line = lines[i].strip()
+            
+            # Handle empty lines (paragraph breaks)
+            if not line:
+                if current_paragraph:
+                    paragraph_text = ' '.join(current_paragraph)
+                    if paragraph_text.strip():
+                        # Check if this looks like a heading
+                        if self._is_heading(paragraph_text):
+                            level = self._get_heading_level(paragraph_text)
+                            formatted_parts.append(f'<h{level}>{paragraph_text}</h{level}>')
+                        else:
+                            formatted_parts.append(f'<p>{paragraph_text}</p>')
+                    current_paragraph = []
+                
+                # Add some spacing between paragraphs
+                if formatted_parts and not formatted_parts[-1].startswith('<div class="image-container'):
+                    formatted_parts.append('<br>')
+                
+            # Handle bulleted or numbered lists
+            elif line.startswith(('•', '-', '*', '1.', '2.', '3.', '4.', '5.', '6.', '7.', '8.', '9.')) or line.lstrip().startswith(('•', '-', '*')):
+                # Finish current paragraph first
+                if current_paragraph:
+                    paragraph_text = ' '.join(current_paragraph)
+                    if paragraph_text.strip():
+                        formatted_parts.append(f'<p>{paragraph_text}</p>')
+                    current_paragraph = []
+                
+                # Process list items
+                list_items = []
+                list_type = 'ul' if line.lstrip().startswith(('•', '-', '*')) else 'ol'
+                
+                while i < len(lines) and lines[i].strip():
+                    list_line = lines[i].strip()
+                    if list_line.startswith(('•', '-', '*')):
+                        clean_item = list_line[1:].strip()
+                        if clean_item:
+                            list_items.append(f'<li>{clean_item}</li>')
+                    elif any(list_line.startswith(f'{num}.') for num in range(1, 20)):
+                        clean_item = list_line.split('.', 1)[1].strip()
+                        if clean_item:
+                            list_items.append(f'<li>{clean_item}</li>')
+                    elif list_line.lstrip().startswith(('•', '-', '*')):
+                        clean_item = list_line.lstrip()[1:].strip()
+                        if clean_item:
+                            list_items.append(f'<li>{clean_item}</li>')
+                    else:
+                        # Not a list item, back up
+                        break
+                    i += 1
+                
+                if list_items:
+                    formatted_parts.append(f'<{list_type} style="margin: 15px 0; padding-left: 25px;">')
+                    formatted_parts.extend(list_items)
+                    formatted_parts.append(f'</{list_type}>')
+                
+                continue  # Skip the i += 1 at the end
+                
+            else:
+                # Regular text line
+                current_paragraph.append(line)
+            
+            i += 1
         
-        return '\n'.join(html_parts)
+        # Handle any remaining paragraph
+        if current_paragraph:
+            paragraph_text = ' '.join(current_paragraph)
+            if paragraph_text.strip():
+                if self._is_heading(paragraph_text):
+                    level = self._get_heading_level(paragraph_text)
+                    formatted_parts.append(f'<h{level}>{paragraph_text}</h{level}>')
+                else:
+                    formatted_parts.append(f'<p>{paragraph_text}</p>')
+        
+        # Strategically insert images throughout the content
+        if images:
+            formatted_parts = self._insert_images_strategically(formatted_parts, images)
+        
+        return '\n'.join(formatted_parts)
+    
+    def _is_heading(self, text: str) -> bool:
+        """Determine if text looks like a heading"""
+        text = text.strip()
+        
+        # Short, capitalized text
+        if len(text) < 80 and (
+            text.isupper() or 
+            text.istitle() or 
+            text.count('.') == 0 or
+            text.endswith(':')
+        ):
+            return True
+        
+        # Check for common heading patterns
+        heading_indicators = ['introduction', 'conclusion', 'overview', 'summary', 'chapter', 'section']
+        if any(indicator in text.lower() for indicator in heading_indicators):
+            return True
+            
+        return False
+    
+    def _get_heading_level(self, text: str) -> int:
+        """Determine appropriate heading level (2-4, avoiding h1)"""
+        text_lower = text.lower()
+        
+        # Main section headings
+        if any(word in text_lower for word in ['introduction', 'conclusion', 'overview', 'summary']):
+            return 2
+        
+        # Subsection headings
+        if any(word in text_lower for word in ['chapter', 'section', 'part']):
+            return 3
+            
+        # Default to h3 for most content headings
+        return 3
+    
+    def _insert_images_strategically(self, content_parts: List[str], images: List[str]) -> List[str]:
+        """Insert images strategically throughout the content with proper styling"""
+        if not images:
+            return content_parts
+        
+        result = []
+        images_inserted = 0
+        content_blocks = 0
+        
+        for i, part in enumerate(content_parts):
+            result.append(part)
+            
+            # Count substantial content blocks (paragraphs, lists, headings)
+            if part.startswith(('<p>', '<h', '<ul>', '<ol>')):
+                content_blocks += 1
+                
+                # Insert an image every 2-3 content blocks
+                if (content_blocks % 3 == 0 or content_blocks % 2 == 0) and images_inserted < len(images):
+                    image_html = self._create_responsive_image_html(
+                        images[images_inserted], 
+                        f"Content illustration {images_inserted + 1}",
+                        align='center'
+                    )
+                    result.append(image_html)
+                    images_inserted += 1
+        
+        # Add any remaining images at the end
+        while images_inserted < len(images):
+            image_html = self._create_responsive_image_html(
+                images[images_inserted], 
+                f"Content illustration {images_inserted + 1}",
+                align='center'
+            )
+            result.append(image_html)
+            images_inserted += 1
+        
+        return result
+    
+    def _create_responsive_image_html(self, image_filename: str, alt_text: str, align: str = 'center') -> str:
+        """Create well-styled, responsive image HTML with proper alignment"""
+        img_path = f"/static/resources/{image_filename}"
+        
+        # Determine alignment styles
+        align_styles = {
+            'left': 'margin: 20px 20px 20px 0; float: left;',
+            'right': 'margin: 20px 0 20px 20px; float: right;',
+            'center': 'margin: 20px auto; display: block;'
+        }
+        
+        alignment_style = align_styles.get(align, align_styles['center'])
+        
+        return f'''<div class="image-container" style="text-align: {align}; margin: 25px 0; clear: both;">
+    <img src="{img_path}" alt="{alt_text}" 
+         style="max-width: 100%; height: auto; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); {alignment_style}"
+         loading="lazy" />
+</div>'''
     
     def generate_quiz(self, text: str, num_mcq: int = 5, num_tf: int = 3) -> Dict:
         """
