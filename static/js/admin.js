@@ -17,6 +17,7 @@ function initializeAdminLogin() {
 
 function verifyPasscode() {
     const passcode = document.getElementById('passcode').value;
+    console.log('Verifying passcode...'); // Debug log
     
     fetch('/admin/verify_passcode', {
         method: 'POST',
@@ -27,15 +28,18 @@ function verifyPasscode() {
     })
     .then(response => response.json())
     .then(data => {
+        console.log('Login response:', data); // Debug log
         if (data.success) {
+            console.log('Login successful, redirecting...'); // Debug log
             window.location.href = '/admin/dashboard';
         } else {
-            showAlert('Invalid passcode. Please try again.', 'danger');
+            console.log('Login failed'); // Debug log
+            alert('Invalid passcode. Please try again.');
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error verifying passcode.', 'danger');
+        alert('Error verifying passcode.');
     });
 }
 
