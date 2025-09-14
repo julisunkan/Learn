@@ -38,6 +38,38 @@ content_importer = WebContentImporter(upload_folder=UPLOAD_FOLDER)
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# CSRF Protection
+def generate_csrf_token():
+    """Generate a CSRF token for the current session"""
+    import secrets
+    if 'csrf_token' not in session:
+        session['csrf_token'] = secrets.token_hex(16)
+    return session['csrf_token']
+
+def validate_csrf_token():
+    """Validate CSRF token from request headers"""
+    if not session.get('admin_authenticated', False):
+        return True  # Skip CSRF for non-authenticated requests (they'll fail auth anyway)
+    
+    session_token = session.get('csrf_token')
+    request_token = request.headers.get('X-CSRF-Token')
+    
+    if not session_token or not request_token:
+        return False
+    
+    return session_token == request_token
+
+@app.before_request
+def check_csrf_on_admin_routes():
+    """Apply CSRF protection to all admin POST/PUT/DELETE requests"""
+    if request.path.startswith('/admin') and request.method in ['POST', 'PUT', 'DELETE']:
+        # Skip CSRF for login and token endpoints
+        if request.path in ['/admin/verify_passcode', '/admin/csrf-token']:
+            return
+        
+        if not validate_csrf_token():
+            return jsonify({"error": "CSRF token validation failed"}), 403
+
 # Progress Storage Functions
 def load_user_progress():
     """Load user progress from progress.json"""
@@ -277,6 +309,14 @@ def admin_dashboard():
     config = load_config()
     courses = load_courses()
     return render_template('admin.html', config=config, courses=courses, mode='dashboard')
+
+@app.route('/admin/csrf-token')
+def get_csrf_token():
+    """Get CSRF token for authenticated admin session"""
+    if not session.get('admin_authenticated', False):
+        return jsonify({"error": "Authentication required"}), 401
+    
+    return jsonify({"csrf_token": generate_csrf_token()})
 
 @app.route('/admin/verify_passcode', methods=['POST'])
 def verify_passcode():

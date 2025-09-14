@@ -74,6 +74,24 @@ function initializeAdminDashboard() {
         });
     }
     
+    // Initialize URL import form
+    const urlImportForm = document.getElementById('urlImportForm');
+    if (urlImportForm) {
+        urlImportForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            importFromUrl();
+        });
+        
+        // Toggle quiz options based on generate quiz checkbox
+        const generateQuizCheckbox = document.getElementById('generateQuiz');
+        const quizOptions = document.getElementById('quizOptions');
+        if (generateQuizCheckbox && quizOptions) {
+            generateQuizCheckbox.addEventListener('change', function() {
+                quizOptions.style.display = this.checked ? 'flex' : 'none';
+            });
+        }
+    }
+    
     // Initialize PWA icon management
     initializePwaIconManagement();
 }
@@ -1061,4 +1079,225 @@ function deletePWAIcon(iconUrl, size, iconType) {
     // Note: This would require implementing a delete endpoint
     // For now, just show a message
     showAlert('Icon deletion requires server-side implementation', 'info');
+}
+
+// CSRF token management
+let csrfToken = null;
+
+async function getCsrfToken() {
+    if (!csrfToken) {
+        try {
+            const response = await fetch('/admin/csrf-token');
+            const data = await response.json();
+            csrfToken = data.csrf_token;
+        } catch (error) {
+            console.error('Error fetching CSRF token:', error);
+        }
+    }
+    return csrfToken;
+}
+
+// URL Import Functions
+async function importFromUrl() {
+    const form = document.getElementById('urlImportForm');
+    const progressDiv = document.getElementById('importProgress');
+    const resultsDiv = document.getElementById('importResults');
+    const submitButton = form.querySelector('button[type="submit"]');
+    
+    const formData = {
+        url: document.getElementById('importUrl').value.trim(),
+        title: document.getElementById('moduleTitle').value.trim(),
+        include_images: document.getElementById('includeImages').checked,
+        generate_quiz: document.getElementById('generateQuiz').checked,
+        num_mcq: parseInt(document.getElementById('numMcq').value) || 5,
+        num_tf: parseInt(document.getElementById('numTf').value) || 3
+    };
+    
+    if (!formData.url) {
+        showAlert('Please enter a valid URL.', 'warning');
+        return;
+    }
+    
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        showAlert('Security token error. Please refresh the page.', 'danger');
+        return;
+    }
+    
+    // Show progress indicator
+    progressDiv.style.display = 'block';
+    resultsDiv.style.display = 'none';
+    submitButton.disabled = true;
+    submitButton.innerHTML = '<i class="bi bi-hourglass-split"></i> Importing...';
+    
+    fetch('/admin/import_url', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': token
+        },
+        body: JSON.stringify(formData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        progressDiv.style.display = 'none';
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="bi bi-cloud-download"></i> Import Content';
+        
+        if (data.success) {
+            showAlert('Content imported successfully!', 'success');
+            displayImportResults(data);
+            form.reset(); // Reset form after successful import
+            
+            // Refresh modules list
+            if (typeof loadModules === 'function') {
+                loadModules();
+            }
+        } else {
+            showAlert(`Import failed: ${data.error}`, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error importing URL:', error);
+        progressDiv.style.display = 'none';
+        submitButton.disabled = false;
+        submitButton.innerHTML = '<i class="bi bi-cloud-download"></i> Import Content';
+        showAlert('Error importing content. Please try again.', 'danger');
+    });
+}
+
+function displayImportResults(data) {
+    const resultsDiv = document.getElementById('importResults');
+    const summaryDiv = document.getElementById('importSummary');
+    const quizPreviewDiv = document.getElementById('quizPreview');
+    const quizQuestionsDiv = document.getElementById('quizQuestions');
+    
+    // Display summary
+    summaryDiv.innerHTML = `
+        <div class="row">
+            <div class="col-md-3">
+                <div class="text-center">
+                    <div class="h4 text-primary mb-1">${data.module_id + 1}</div>
+                    <small class="text-muted">Module ID</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <div class="h4 text-success mb-1">${data.content_length || 0}</div>
+                    <small class="text-muted">Characters</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <div class="h4 text-info mb-1">${data.images_imported || 0}</div>
+                    <small class="text-muted">Images</small>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="text-center">
+                    <div class="h4 text-warning mb-1">${data.quiz_questions || 0}</div>
+                    <small class="text-muted">Quiz Questions</small>
+                </div>
+            </div>
+        </div>
+        <div class="mt-3">
+            <h6>Module Title: <span class="text-primary">${data.title}</span></h6>
+            <p class="text-muted mb-1">The content has been successfully imported and is now available in the modules list.</p>
+            <a href="/module/${data.module_id}" target="_blank" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-eye"></i> Preview Module
+            </a>
+        </div>
+    `;
+    
+    // Show quiz preview if questions were generated
+    if (data.quiz_questions > 0) {
+        generateQuizPreview(data.module_id);
+        quizPreviewDiv.style.display = 'block';
+    } else {
+        quizPreviewDiv.style.display = 'none';
+    }
+    
+    resultsDiv.style.display = 'block';
+}
+
+async function generateQuizPreview(moduleId) {
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        document.getElementById('quizQuestions').innerHTML = '<p class="text-muted">Security token error. Please refresh the page.</p>';
+        return;
+    }
+    
+    // Generate a preview of the quiz for the imported module
+    fetch('/admin/generate_quiz', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': token
+        },
+        body: JSON.stringify({ 
+            module_id: moduleId, 
+            num_mcq: 3, // Preview only first 3 questions
+            num_tf: 2,
+            persist: false 
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        const quizQuestionsDiv = document.getElementById('quizQuestions');
+        
+        if (data.success && data.quiz && data.quiz.questions) {
+            const questions = data.quiz.questions.slice(0, 5); // Show max 5 questions in preview
+            
+            quizQuestionsDiv.innerHTML = questions.map((q, index) => {
+                if (q.type === 'multiple_choice') {
+                    return `
+                        <div class="card mb-2">
+                            <div class="card-body p-3">
+                                <h6 class="card-title">${index + 1}. ${q.question}</h6>
+                                <div class="options">
+                                    ${q.options.map((option, optIndex) => `
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="radio" disabled ${optIndex === q.answer_index ? 'checked' : ''}>
+                                            <label class="form-check-label ${optIndex === q.answer_index ? 'text-success fw-bold' : ''}">
+                                                ${option}
+                                            </label>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                                ${q.explanation ? `<small class="text-muted mt-2 d-block">${q.explanation}</small>` : ''}
+                            </div>
+                        </div>
+                    `;
+                } else if (q.type === 'true_false') {
+                    return `
+                        <div class="card mb-2">
+                            <div class="card-body p-3">
+                                <h6 class="card-title">${index + 1}. ${q.question}</h6>
+                                <div class="options">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" disabled ${q.answer ? 'checked' : ''}>
+                                        <label class="form-check-label ${q.answer ? 'text-success fw-bold' : ''}">True</label>
+                                    </div>
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="radio" disabled ${!q.answer ? 'checked' : ''}>
+                                        <label class="form-check-label ${!q.answer ? 'text-success fw-bold' : ''}">False</label>
+                                    </div>
+                                </div>
+                                ${q.explanation ? `<small class="text-muted mt-2 d-block">${q.explanation}</small>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+                return '';
+            }).join('');
+        } else {
+            quizQuestionsDiv.innerHTML = '<p class="text-muted">No quiz preview available.</p>';
+        }
+    })
+    .catch(error => {
+        console.error('Error generating quiz preview:', error);
+        document.getElementById('quizQuestions').innerHTML = '<p class="text-muted">Error loading quiz preview.</p>';
+    });
 }

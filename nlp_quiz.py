@@ -12,6 +12,8 @@ import numpy as np
 from datetime import datetime
 from werkzeug.utils import secure_filename
 import logging
+import socket
+import ipaddress
 from typing import Dict, List, Tuple, Optional
 
 # Configure logging for debugging
@@ -42,6 +44,19 @@ class WebContentImporter:
         # Ensure upload directory exists
         os.makedirs(upload_folder, exist_ok=True)
         
+        # Security: Define blocked IP ranges to prevent SSRF attacks
+        self.blocked_networks = [
+            ipaddress.ip_network('127.0.0.0/8'),      # localhost
+            ipaddress.ip_network('10.0.0.0/8'),       # RFC1918 private
+            ipaddress.ip_network('172.16.0.0/12'),    # RFC1918 private
+            ipaddress.ip_network('192.168.0.0/16'),   # RFC1918 private
+            ipaddress.ip_network('169.254.0.0/16'),   # link-local
+            ipaddress.ip_network('224.0.0.0/4'),      # multicast
+            ipaddress.ip_network('::1/128'),          # IPv6 localhost
+            ipaddress.ip_network('fc00::/7'),         # IPv6 private
+            ipaddress.ip_network('fe80::/10'),        # IPv6 link-local
+        ]
+        
         # Allowed HTML tags for sanitization
         self.allowed_tags = ['p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'u', 'b', 'i', 
                            'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'pre', 'code', 'div', 'span']
@@ -52,6 +67,120 @@ class WebContentImporter:
             'span': ['class']
         }
     
+    def _validate_url_security(self, url: str) -> None:
+        """
+        Validate URL to prevent SSRF attacks by blocking access to internal/private networks
+        """
+        parsed = urlparse(url)
+        
+        # Only allow HTTP/HTTPS schemes
+        if parsed.scheme not in ['http', 'https']:
+            raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+        
+        if not parsed.netloc:
+            raise ValueError("Invalid URL: no network location")
+        
+        # Extract hostname (remove port if present)
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError("Invalid URL: could not extract hostname")
+        
+        try:
+            # Resolve hostname to IP address
+            ip_info = socket.getaddrinfo(hostname, None)
+            if not ip_info:
+                raise ValueError(f"Could not resolve hostname: {hostname}")
+            
+            # Check all resolved IPs
+            for ip_data in ip_info:
+                ip_str = ip_data[4][0]  # Extract IP string from tuple
+                try:
+                    ip_addr = ipaddress.ip_address(ip_str)
+                    
+                    # Check against blocked networks
+                    for blocked_network in self.blocked_networks:
+                        if ip_addr in blocked_network:
+                            raise ValueError(f"Access to {ip_str} ({hostname}) is blocked for security reasons")
+                    
+                    logger.debug(f"URL security check passed for {hostname} -> {ip_str}")
+                    
+                except ValueError as e:
+                    if "is blocked" in str(e):
+                        raise e
+                    logger.warning(f"Could not parse IP address {ip_str}: {e}")
+                    continue
+                    
+        except socket.gaierror as e:
+            raise ValueError(f"DNS resolution failed for {hostname}: {e}")
+        except Exception as e:
+            raise ValueError(f"Security validation failed for {hostname}: {e}")
+    
+    def _secure_fetch_with_redirects(self, url: str, max_redirects: int = 5, max_content_size: int = 5*1024*1024) -> str:
+        """
+        Securely fetch URL content with manual redirect handling, SSRF protection, and size limits
+        """
+        current_url = url
+        redirect_count = 0
+        
+        while redirect_count <= max_redirects:
+            # Validate current URL
+            self._validate_url_security(current_url)
+            
+            # Fetch without following redirects, stream to enforce size limits
+            response = requests.get(current_url, timeout=self.timeout, allow_redirects=False, stream=True)
+            
+            # If not a redirect, return content with size limits
+            if response.status_code not in [301, 302, 303, 307, 308]:
+                response.raise_for_status()
+                
+                # Check Content-Length if provided
+                content_length = response.headers.get('Content-Length')
+                if content_length and int(content_length) > max_content_size:
+                    raise ValueError(f"Content too large: {content_length} bytes (max {max_content_size})")
+                
+                # Stream content with size limit enforcement
+                content_bytes = b''
+                for chunk in response.iter_content(chunk_size=8192):
+                    if len(content_bytes) + len(chunk) > max_content_size:
+                        raise ValueError(f"Content exceeds size limit: {max_content_size} bytes")
+                    content_bytes += chunk
+                
+                return content_bytes.decode('utf-8', errors='replace')
+            
+            # Handle redirect
+            redirect_url = response.headers.get('Location')
+            if not redirect_url:
+                break
+            
+            # Make relative redirects absolute
+            if not redirect_url.startswith(('http://', 'https://')):
+                redirect_url = urljoin(current_url, redirect_url)
+            
+            current_url = redirect_url
+            redirect_count += 1
+        
+        if redirect_count > max_redirects:
+            raise ValueError(f"Too many redirects (>{max_redirects})")
+        
+        # Final request if we broke out of loop with size limits
+        self._validate_url_security(current_url)
+        response = requests.get(current_url, timeout=self.timeout, allow_redirects=False, stream=True)
+        response.raise_for_status()
+        
+        # Check Content-Length if provided
+        content_length = response.headers.get('Content-Length')
+        if content_length and int(content_length) > max_content_size:
+            raise ValueError(f"Content too large: {content_length} bytes (max {max_content_size})")
+        
+        # Stream content with size limit enforcement
+        content_bytes = b''
+        for chunk in response.iter_content(chunk_size=8192):
+            if len(content_bytes) + len(chunk) > max_content_size:
+                raise ValueError(f"Content exceeds size limit: {max_content_size} bytes")
+            content_bytes += chunk
+        
+        return content_bytes.decode('utf-8', errors='replace')
+    
     def scrape_url_content(self, url: str, include_images: bool = True) -> Dict:
         """
         Scrape content from URL including text and optionally images
@@ -60,15 +189,11 @@ class WebContentImporter:
         try:
             logger.info(f"Scraping content from: {url}")
             
-            # Validate URL
+            # Parse URL for title fallback
             parsed = urlparse(url)
-            if not parsed.scheme or not parsed.netloc:
-                raise ValueError("Invalid URL format")
-            if parsed.scheme not in ['http', 'https']:
-                raise ValueError("Only HTTP/HTTPS URLs are allowed")
             
-            # Get main text content using trafilatura
-            downloaded = trafilatura.fetch_url(url)
+            # Get main text content using secure fetch with redirect protection
+            downloaded = self._secure_fetch_with_redirects(url)
             if not downloaded:
                 raise ValueError("Failed to fetch URL content")
             
@@ -132,16 +257,50 @@ class WebContentImporter:
                 img_url = urljoin(base_url, img_src)
                 parsed_img = urlparse(img_url)
                 
-                if parsed_img.scheme not in ['http', 'https']:
+                # Apply security validation to image URLs
+                try:
+                    self._validate_url_security(img_url)
+                except ValueError as e:
+                    logger.warning(f"Skipping image due to security check: {e}")
                     continue
                 
-                # Download image
-                response = requests.get(img_url, timeout=self.timeout, stream=True)
-                response.raise_for_status()
+                # Download image with redirect protection
+                response = requests.get(img_url, timeout=self.timeout, stream=True, allow_redirects=False)
                 
-                # Check content type and size
+                # Handle redirects manually with security validation
+                redirect_count = 0
+                while response.status_code in [301, 302, 303, 307, 308] and redirect_count < 5:
+                    redirect_url = response.headers.get('Location')
+                    if not redirect_url:
+                        break
+                    
+                    # Make relative redirects absolute
+                    if not redirect_url.startswith(('http://', 'https://')):
+                        redirect_url = urljoin(img_url, redirect_url)
+                    
+                    # Validate redirect target
+                    try:
+                        self._validate_url_security(redirect_url)
+                    except ValueError as e:
+                        logger.warning(f"Skipping image redirect due to security check: {e}")
+                        break
+                    
+                    img_url = redirect_url
+                    parsed_img = urlparse(img_url)
+                    response = requests.get(img_url, timeout=self.timeout, stream=True, allow_redirects=False)
+                    redirect_count += 1
+                
+                if not response.ok:
+                    continue
+                
+                # Check content type and block SVG for security (XSS risk)
                 content_type = response.headers.get('Content-Type', '').lower()
-                if not any(img_type in content_type for img_type in ['image/jpeg', 'image/png', 'image/gif', 'image/webp']):
+                if 'svg' in content_type:
+                    logger.warning(f"Blocked SVG image for security: {img_url}")
+                    continue
+                
+                # Only allow safe image types
+                if not any(img_type in content_type for img_type in ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp']):
                     continue
                 
                 content_length = int(response.headers.get('Content-Length', 0))
@@ -163,10 +322,42 @@ class WebContentImporter:
                 filename = f"{timestamp}{secure_filename(original_filename.split('.')[0])}{ext}"
                 filepath = os.path.join(self.upload_folder, filename)
                 
-                # Save image
+                # Save image with byte limit enforcement
+                bytes_written = 0
                 with open(filepath, 'wb') as f:
-                    for chunk in response.iter_content(chunk_size=8192):
-                        f.write(chunk)
+                    try:
+                        for chunk in response.iter_content(chunk_size=8192):
+                            if bytes_written + len(chunk) > self.max_image_size:
+                                # Remove partial file if size exceeded
+                                f.close()
+                                os.remove(filepath)
+                                logger.warning(f"Image {img_url} exceeded size limit, removed partial file")
+                                break
+                            f.write(chunk)
+                            bytes_written += len(chunk)
+                    except Exception as e:
+                        # Clean up partial file on any error
+                        f.close()
+                        if os.path.exists(filepath):
+                            os.remove(filepath)
+                        logger.warning(f"Error downloading {img_url}: {e}")
+                        continue
+                
+                # Validate image type using magic bytes for security
+                try:
+                    from PIL import Image
+                    with Image.open(filepath) as img:
+                        # Verify it's a safe image format (not SVG or other)
+                        if img.format not in ['JPEG', 'PNG', 'GIF', 'WEBP']:
+                            os.remove(filepath)
+                            logger.warning(f"Blocked unsafe image format {img.format}: {img_url}")
+                            continue
+                except Exception as e:
+                    # Remove if not a valid image
+                    if os.path.exists(filepath):
+                        os.remove(filepath)
+                    logger.warning(f"Invalid image file removed {img_url}: {e}")
+                    continue
                 
                 downloaded_images.append(filename)
                 logger.info(f"Downloaded image: {filename}")
