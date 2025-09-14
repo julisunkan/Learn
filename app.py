@@ -45,13 +45,12 @@ def is_admin_authenticated():
     return session.get('admin_authenticated', False)
 
 def require_admin_auth():
-    """Decorator to require admin authentication"""
+    """Decorator to require admin authentication - always enforced"""
     def decorator(f):
         from functools import wraps
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            config = load_config()
-            if config.get('enable_passcode', False) and not is_admin_authenticated():
+            if not is_admin_authenticated():
                 return jsonify({"error": "Admin authentication required"}), 401
             return f(*args, **kwargs)
         return decorated_function
@@ -318,15 +317,11 @@ def module_detail(module_id):
 
 @app.route('/admin')
 def admin_dashboard():
-    """Admin panel with authentication check"""
+    """Admin panel with authentication check - always requires auth"""
+    if not is_admin_authenticated():
+        return redirect(url_for('admin_login'))
+    
     config = load_config()
-    
-    # Check if passcode authentication is enabled
-    if config.get('enable_passcode', False):
-        if not is_admin_authenticated():
-            # Redirect to admin login instead of returning JSON error
-            return redirect(url_for('admin_login'))
-    
     courses = load_courses()
     return render_template('admin.html', config=config, courses=courses, mode='dashboard')
 
@@ -357,15 +352,10 @@ def admin_login():
             else:
                 flash('Invalid admin passcode', 'error')
         else:
-            # Plain text passcode - authenticate and immediately upgrade to hash
+            # Plain text passcode - authenticate but DO NOT save hash to avoid persistence
             if passcode == stored_passcode:
-                # Hash the passcode and save it
-                hashed_passcode = generate_password_hash(passcode)
-                config['admin_passcode'] = hashed_passcode
-                save_config(config)
-                
                 session['admin_authenticated'] = True
-                flash('Successfully logged in as admin', 'success')
+                flash('Successfully logged in as admin. Consider using hashed passcode in environment.', 'success')
                 return redirect(url_for('admin_dashboard'))
             else:
                 flash('Invalid admin passcode', 'error')
@@ -394,10 +384,15 @@ def admin_config():
     
     if request.method == 'POST':
         config = request.json or {}
-        save_config(config)
+        # Never save admin_passcode to file - it should only be in environment
+        config_to_save = {k: v for k, v in config.items() if k != 'admin_passcode'}
+        save_config(config_to_save)
         return jsonify({"success": True})
     else:
-        return jsonify(load_config())
+        config = load_config()
+        # Never return admin_passcode in API response
+        safe_config = {k: v for k, v in config.items() if k != 'admin_passcode'}
+        return jsonify(safe_config)
 
 @app.route('/admin/modules', methods=['GET', 'POST', 'PUT', 'DELETE'])  # type: ignore
 @require_admin_auth()
@@ -754,8 +749,11 @@ def export_course():
     buffer = io.BytesIO()
     
     with zipfile.ZipFile(buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        # Add config file
-        zip_file.write('config.json', 'config.json')
+        # Add sanitized config file (without secrets)
+        config = load_config()
+        safe_config = {k: v for k, v in config.items() if k != 'admin_passcode'}
+        config_data = json.dumps(safe_config, indent=4)
+        zip_file.writestr('config.json', config_data)
         
         # Add courses data
         zip_file.write('data/courses.json', 'data/courses.json')
