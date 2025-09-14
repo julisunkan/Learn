@@ -15,6 +15,7 @@ import hashlib
 import time
 import requests
 import urllib.parse
+from werkzeug.security import generate_password_hash, check_password_hash
 # Import URL content scraping and quiz generation functionality  
 from nlp_quiz import WebContentImporter
 import logging
@@ -38,6 +39,24 @@ content_importer = WebContentImporter(upload_folder=UPLOAD_FOLDER)
 logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
+# Admin Authentication Functions
+def is_admin_authenticated():
+    """Check if user is authenticated as admin"""
+    return session.get('admin_authenticated', False)
+
+def require_admin_auth():
+    """Decorator to require admin authentication"""
+    def decorator(f):
+        from functools import wraps
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            config = load_config()
+            if config.get('enable_passcode', False) and not is_admin_authenticated():
+                return jsonify({"error": "Admin authentication required"}), 401
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
 # CSRF Protection
 def generate_csrf_token():
     """Generate a CSRF token for the current session"""
@@ -60,8 +79,8 @@ def validate_csrf_token():
 def check_csrf_on_admin_routes():
     """Apply CSRF protection to all admin POST/PUT/DELETE requests"""
     if request.path.startswith('/admin') and request.method in ['POST', 'PUT', 'DELETE']:
-        # Skip CSRF for token endpoint
-        if request.path in ['/admin/csrf-token']:
+        # Skip CSRF for authentication endpoints and token endpoint
+        if request.path in ['/admin/csrf-token', '/admin/login', '/admin/logout']:
             return
         
         if not validate_csrf_token():
@@ -177,12 +196,12 @@ def after_request(response):
     return response
 
 def load_config():
-    """Load site configuration from config.json"""
+    """Load site configuration from config.json and environment"""
     try:
         with open('config.json', 'r') as f:
-            return json.load(f)
+            config = json.load(f)
     except FileNotFoundError:
-        return {
+        config = {
             "site_title": "Tutorial Platform",
             "site_description": "Learn at your own pace",
             "primary_color": "#007bff",
@@ -190,9 +209,15 @@ def load_config():
             "text_color": "#333333",
             "font_size": "16px",
             "font_family": "Arial, sans-serif",
-            "admin_passcode": "admin123",
             "enable_passcode": False
         }
+    
+    # Override admin passcode with environment variable if available
+    env_passcode = os.environ.get('ADMIN_PASSCODE')
+    if env_passcode:
+        config['admin_passcode'] = env_passcode
+    
+    return config
 
 def save_config(config):
     """Save site configuration to config.json"""
@@ -293,19 +318,77 @@ def module_detail(module_id):
 
 @app.route('/admin')
 def admin_dashboard():
-    """Admin panel - direct access"""
+    """Admin panel with authentication check"""
     config = load_config()
+    
+    # Check if passcode authentication is enabled
+    if config.get('enable_passcode', False):
+        if not is_admin_authenticated():
+            # Redirect to admin login instead of returning JSON error
+            return redirect(url_for('admin_login'))
+    
     courses = load_courses()
     return render_template('admin.html', config=config, courses=courses, mode='dashboard')
 
+@app.route('/admin/login', methods=['GET', 'POST'])
+def admin_login():
+    """Admin login page"""
+    config = load_config()
+    
+    if request.method == 'POST':
+        passcode = request.form.get('passcode')
+        stored_passcode = config.get('admin_passcode')
+        
+        if not stored_passcode:
+            flash('Admin passcode not configured. Please set ADMIN_PASSCODE environment variable.', 'error')
+            return render_template('admin_login.html', config=config)
+        
+        if not passcode:
+            flash('Please enter the admin passcode', 'error')
+            return render_template('admin_login.html', config=config)
+        
+        # Check if stored passcode is hashed
+        if stored_passcode.startswith(('pbkdf2:', 'scrypt:', 'argon2:')):
+            # Use hashed comparison
+            if check_password_hash(stored_passcode, passcode):
+                session['admin_authenticated'] = True
+                flash('Successfully logged in as admin', 'success')
+                return redirect(url_for('admin_dashboard'))
+            else:
+                flash('Invalid admin passcode', 'error')
+        else:
+            # Plain text passcode - authenticate and immediately upgrade to hash
+            if passcode == stored_passcode:
+                # Hash the passcode and save it
+                hashed_passcode = generate_password_hash(passcode)
+                config['admin_passcode'] = hashed_passcode
+                save_config(config)
+                
+                session['admin_authenticated'] = True
+                flash('Successfully logged in as admin', 'success')
+                return redirect(url_for('admin_dashboard'))
+            else:
+                flash('Invalid admin passcode', 'error')
+    
+    return render_template('admin_login.html', config=config)
+
+@app.route('/admin/logout', methods=['POST'])
+def admin_logout():
+    """Admin logout"""
+    session.pop('admin_authenticated', None)
+    flash('Logged out successfully', 'info')
+    return redirect(url_for('index'))
+
 
 @app.route('/admin/csrf-token')
+@require_admin_auth()
 def get_csrf_token():
     """Get CSRF token for admin session"""
     return jsonify({"csrf_token": generate_csrf_token()})
 
 
 @app.route('/admin/config', methods=['GET', 'POST'])
+@require_admin_auth()
 def admin_config():
     """Handle site configuration"""
     
@@ -317,6 +400,7 @@ def admin_config():
         return jsonify(load_config())
 
 @app.route('/admin/modules', methods=['GET', 'POST', 'PUT', 'DELETE'])  # type: ignore
+@require_admin_auth()
 def admin_modules():
     """Handle module management"""
     
@@ -370,6 +454,7 @@ def admin_modules():
         return jsonify({"success": False, "error": "Invalid module ID"})
 
 @app.route('/admin/upload_resource', methods=['POST'])
+@require_admin_auth()
 def upload_resource():
     """Handle file uploads for resources"""
     
@@ -398,6 +483,7 @@ def upload_resource():
     return jsonify({"success": False, "error": "Invalid file type"})
 
 @app.route('/admin/upload_pwa_icon', methods=['POST'])
+@require_admin_auth()
 def upload_pwa_icon():
     """Handle PWA icon upload and generate all required sizes"""
     
@@ -661,6 +747,7 @@ def generate_certificate():
                     mimetype='application/pdf')
 
 @app.route('/admin/export_course')
+@require_admin_auth()
 def export_course():
     """Export entire course as ZIP file"""
     
@@ -694,6 +781,7 @@ def export_course():
                     mimetype='application/zip')
 
 @app.route('/admin/import_course', methods=['POST'])
+@require_admin_auth()
 def import_course():
     """Import course from ZIP file"""
     
@@ -771,6 +859,7 @@ def import_course():
     return jsonify({"success": False, "error": "Invalid file type"})
 
 @app.route('/admin/import_url', methods=['POST'])
+@require_admin_auth()
 def admin_import_url():
     """Import content from URL with automatic quiz generation"""
     
@@ -853,6 +942,7 @@ def admin_import_url():
         return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/admin/generate_quiz', methods=['POST'])
+@require_admin_auth()
 def admin_generate_quiz():
     """Generate quiz from existing content or provided text"""
     

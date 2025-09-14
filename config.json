@@ -6,6 +6,5 @@
     "text_color": "#333333",
     "font_size": "18px",
     "font_family": "Arial, sans-serif",
-    "enable_passcode": true,
-    "admin_passcode": "admin123"
+    "enable_passcode": true
 }
