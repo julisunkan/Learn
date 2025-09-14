@@ -390,7 +390,7 @@ def upload_pwa_icon():
         from PIL import Image
         
         # Open and validate the uploaded image
-        image = Image.open(file)
+        image = Image.open(file.stream)
         
         # Convert to RGBA for transparency support
         if image.mode != 'RGBA':
@@ -747,38 +747,6 @@ def service_worker():
     response.headers['Cache-Control'] = 'no-cache'
     return response
 
-@app.route('/admin/upload_pwa_icon', methods=['POST'])
-def upload_pwa_icon():
-    """Handle PWA icon uploads"""
-    if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401  # type: ignore
-    
-    if 'file' not in request.files:
-        return jsonify({"success": False, "error": "No file selected"})
-    
-    file = request.files['file']
-    icon_type = request.form.get('icon_type', 'regular')  # 'regular' or 'maskable'
-    icon_size = request.form.get('icon_size', '192')
-    
-    if file.filename == '':
-        return jsonify({"success": False, "error": "No file selected"})
-    
-    if file and file.filename and file.filename.lower().endswith('.png'):
-        os.makedirs('static/pwa-icons', exist_ok=True)
-        
-        suffix = '-maskable' if icon_type == 'maskable' else ''
-        filename = f'icon-{icon_size}x{icon_size}{suffix}.png'
-        file_path = os.path.join('static/pwa-icons', filename)
-        
-        file.save(file_path)
-        
-        return jsonify({
-            "success": True, 
-            "filename": filename,
-            "url": f"/static/pwa-icons/{filename}"
-        })
-    
-    return jsonify({"success": False, "error": "Only PNG files are allowed for PWA icons"})
 
 if __name__ == '__main__':
     # Create necessary directories

@@ -3,7 +3,7 @@
 {% block title %}Admin Panel - {{ config.site_title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
+<div class="container-fluid" data-login-mode="{{ 'true' if mode == 'login' else 'false' }}">
     {% if mode == 'login' %}
     <!-- Admin Login -->
     <div class="row justify-content-center mt-5">
@@ -437,7 +437,7 @@
 
 {% block scripts %}
 <script>
-const isLoginMode = {{ 'true' if mode == 'login' else 'false' }};
+const isLoginMode = document.querySelector('.container-fluid').getAttribute('data-login-mode') === 'true';
 
 document.addEventListener('DOMContentLoaded', function() {
     if (isLoginMode) {
