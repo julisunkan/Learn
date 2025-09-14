@@ -1,10 +1,10 @@
 {
     "site_title": "Advanced Ethical Hacking with Python",
     "site_description": "Learn at your own pace with our comprehensive tutorial platform",
-    "primary_color": "#8c5912",
+    "primary_color": "#123b8c",
     "secondary_color": "#6c757d",
     "text_color": "#333333",
-    "font_size": "16px",
+    "font_size": "18px",
     "font_family": "Arial, sans-serif",
     "enable_passcode": true,
     "admin_passcode": "admin123"

@@ -608,10 +608,99 @@ def import_course():
     
     return jsonify({"success": False, "error": "Invalid file type"})
 
+@app.route('/manifest.json')
+def manifest():
+    """Generate PWA manifest.json dynamically"""
+    config = load_config()
+    
+    # Default PWA icons if none uploaded
+    icons = []
+    
+    # Check for uploaded PWA icons
+    pwa_icons_dir = 'static/pwa-icons'
+    if os.path.exists(pwa_icons_dir):
+        for size in ['72', '96', '128', '144', '152', '192', '384', '512']:
+            icon_file = f'icon-{size}x{size}.png'
+            maskable_file = f'icon-{size}x{size}-maskable.png'
+            
+            if os.path.exists(os.path.join(pwa_icons_dir, icon_file)):
+                icons.append({
+                    "src": f"/static/pwa-icons/{icon_file}",
+                    "sizes": f"{size}x{size}",
+                    "type": "image/png"
+                })
+            
+            if os.path.exists(os.path.join(pwa_icons_dir, maskable_file)):
+                icons.append({
+                    "src": f"/static/pwa-icons/{maskable_file}",
+                    "sizes": f"{size}x{size}",
+                    "type": "image/png",
+                    "purpose": "maskable"
+                })
+    
+    # Fallback to favicon if no PWA icons
+    if not icons:
+        icons.append({
+            "src": "/static/favicon.ico",
+            "sizes": "64x64 32x32 24x24 16x16",
+            "type": "image/x-icon"
+        })
+    
+    manifest_data = {
+        "name": config.get('site_title', 'Tutorial Platform'),
+        "short_name": config.get('site_title', 'Tutorial Platform')[:12],
+        "description": config.get('site_description', 'Learn at your own pace'),
+        "start_url": "/",
+        "display": "standalone",
+        "background_color": config.get('primary_color', '#007bff'),
+        "theme_color": config.get('primary_color', '#007bff'),
+        "icons": icons,
+        "orientation": "portrait-primary",
+        "categories": ["education", "productivity"]
+    }
+    
+    response = jsonify(manifest_data)
+    response.headers['Content-Type'] = 'application/manifest+json'
+    return response
+
+@app.route('/admin/upload_pwa_icon', methods=['POST'])
+def upload_pwa_icon():
+    """Handle PWA icon uploads"""
+    if not session.get('admin_authenticated', False):
+        return jsonify({"error": "Authentication required"}), 401
+    
+    if 'file' not in request.files:
+        return jsonify({"success": False, "error": "No file selected"})
+    
+    file = request.files['file']
+    icon_type = request.form.get('icon_type', 'regular')  # 'regular' or 'maskable'
+    icon_size = request.form.get('icon_size', '192')
+    
+    if file.filename == '':
+        return jsonify({"success": False, "error": "No file selected"})
+    
+    if file and file.filename and file.filename.lower().endswith('.png'):
+        os.makedirs('static/pwa-icons', exist_ok=True)
+        
+        suffix = '-maskable' if icon_type == 'maskable' else ''
+        filename = f'icon-{icon_size}x{icon_size}{suffix}.png'
+        file_path = os.path.join('static/pwa-icons', filename)
+        
+        file.save(file_path)
+        
+        return jsonify({
+            "success": True, 
+            "filename": filename,
+            "url": f"/static/pwa-icons/{filename}"
+        })
+    
+    return jsonify({"success": False, "error": "Only PNG files are allowed for PWA icons"})
+
 if __name__ == '__main__':
     # Create necessary directories
     os.makedirs('data/modules', exist_ok=True)
     os.makedirs('static/resources', exist_ok=True)
+    os.makedirs('static/pwa-icons', exist_ok=True)
     os.makedirs('templates', exist_ok=True)
     
     # Initialize data directories

@@ -76,6 +76,11 @@
                 <i class="bi bi-chat-dots"></i> Feedback
             </button>
         </li>
+        <li class="nav-item">
+            <button class="nav-link" id="pwa-tab" data-bs-toggle="tab" data-bs-target="#pwa" type="button">
+                <i class="bi bi-phone"></i> PWA Settings
+            </button>
+        </li>
     </ul>
 
     <!-- Tab Content -->
@@ -260,6 +265,109 @@
                 </div>
             </div>
         </div>
+        
+        <!-- PWA Settings Tab -->
+        <div class="tab-pane fade" id="pwa" role="tabpanel">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="bi bi-phone"></i> Progressive Web App Settings</h5>
+                        </div>
+                        <div class="card-body">
+                            <h6>PWA Icons</h6>
+                            <p class="text-muted mb-3">Upload PNG icons for your Progressive Web App. Recommended sizes: 72x72, 96x96, 128x128, 144x144, 152x152, 192x192, 384x384, 512x512 pixels.</p>
+                            
+                            <!-- Regular Icons -->
+                            <div class="mb-4">
+                                <h6><i class="bi bi-image"></i> Regular Icons</h6>
+                                <div class="row" id="regularIcons">
+                                    <!-- Regular icons will be displayed here -->
+                                </div>
+                                <div class="mt-2">
+                                    <form id="uploadRegularIconForm" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+                                        <select class="form-select" id="regularIconSize" style="max-width: 120px;">
+                                            <option value="72">72x72</option>
+                                            <option value="96">96x96</option>
+                                            <option value="128">128x128</option>
+                                            <option value="144">144x144</option>
+                                            <option value="152">152x152</option>
+                                            <option value="192" selected>192x192</option>
+                                            <option value="384">384x384</option>
+                                            <option value="512">512x512</option>
+                                        </select>
+                                        <input type="file" class="form-control" id="regularIconFile" accept=".png" required>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-upload"></i> Upload
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            
+                            <!-- Maskable Icons -->
+                            <div class="mb-4">
+                                <h6><i class="bi bi-mask"></i> Maskable Icons</h6>
+                                <p class="text-muted small">Maskable icons adapt to different device icon shapes (circle, rounded square, etc.)</p>
+                                <div class="row" id="maskableIcons">
+                                    <!-- Maskable icons will be displayed here -->
+                                </div>
+                                <div class="mt-2">
+                                    <form id="uploadMaskableIconForm" enctype="multipart/form-data" class="d-flex align-items-center gap-2">
+                                        <select class="form-select" id="maskableIconSize" style="max-width: 120px;">
+                                            <option value="72">72x72</option>
+                                            <option value="96">96x96</option>
+                                            <option value="128">128x128</option>
+                                            <option value="144">144x144</option>
+                                            <option value="152">152x152</option>
+                                            <option value="192" selected>192x192</option>
+                                            <option value="384">384x384</option>
+                                            <option value="512">512x512</option>
+                                        </select>
+                                        <input type="file" class="form-control" id="maskableIconFile" accept=".png" required>
+                                        <button type="submit" class="btn btn-primary">
+                                            <i class="bi bi-upload"></i> Upload
+                                        </button>
+                                    </form>
+                                </div>
+                            </div>
+                            
+                            <!-- Manifest Preview -->
+                            <div class="mt-4">
+                                <h6><i class="bi bi-file-earmark-code"></i> Manifest Preview</h6>
+                                <a href="/manifest.json" target="_blank" class="btn btn-outline-primary btn-sm">
+                                    <i class="bi bi-eye"></i> View Manifest
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6><i class="bi bi-info-circle"></i> PWA Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <small class="text-muted">
+                                <strong>Progressive Web App</strong><br>
+                                Your tutorial platform is now a PWA with offline capabilities.<br><br>
+                                
+                                <strong>Features:</strong><br>
+                                • Install on mobile/desktop<br>
+                                • Offline access to cached content<br>
+                                • App-like experience<br>
+                                • Custom icons and splash screen<br><br>
+                                
+                                <strong>Icon Guidelines:</strong><br>
+                                • Use PNG format only<br>
+                                • Square dimensions<br>
+                                • Solid backgrounds recommended<br>
+                                • Maskable icons should have safe zone
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
     {% endif %}
 </div>
@@ -349,6 +457,7 @@ document.addEventListener('DOMContentLoaded', function() {
         loadFeedback();
         initializeConfigPreview();
         initializeAutoSave();
+        initializePWASettings();
     }
 });
 </script>

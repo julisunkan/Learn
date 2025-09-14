@@ -781,3 +781,142 @@ function showAlert(message, type = 'info') {
         }
     }, 5000);
 }
+
+// PWA Settings Functions
+function initializePWASettings() {
+    // Initialize PWA icon upload forms
+    const regularIconForm = document.getElementById('uploadRegularIconForm');
+    const maskableIconForm = document.getElementById('uploadMaskableIconForm');
+    
+    if (regularIconForm) {
+        regularIconForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            uploadPWAIcon('regular');
+        });
+    }
+    
+    if (maskableIconForm) {
+        maskableIconForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            uploadPWAIcon('maskable');
+        });
+    }
+    
+    // Load existing PWA icons
+    loadPWAIcons();
+}
+
+function uploadPWAIcon(iconType) {
+    const formId = iconType === 'regular' ? 'uploadRegularIconForm' : 'uploadMaskableIconForm';
+    const fileId = iconType === 'regular' ? 'regularIconFile' : 'maskableIconFile';
+    const sizeId = iconType === 'regular' ? 'regularIconSize' : 'maskableIconSize';
+    
+    const form = document.getElementById(formId);
+    const fileInput = document.getElementById(fileId);
+    const sizeSelect = document.getElementById(sizeId);
+    
+    if (!fileInput.files[0]) {
+        showAlert('Please select a PNG file to upload.', 'warning');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('icon_type', iconType);
+    formData.append('icon_size', sizeSelect.value);
+    
+    // Show loading state
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="bi bi-spinner"></i> Uploading...';
+    submitBtn.disabled = true;
+    
+    fetch('/admin/upload_pwa_icon', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`${iconType} icon uploaded successfully!`, 'success');
+            fileInput.value = ''; // Clear the file input
+            loadPWAIcons(); // Refresh the icons display
+        } else {
+            showAlert(data.error || 'Upload failed', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error uploading PWA icon:', error);
+        showAlert('Error uploading icon', 'danger');
+    })
+    .finally(() => {
+        // Restore button state
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+function loadPWAIcons() {
+    const regularIconsContainer = document.getElementById('regularIcons');
+    const maskableIconsContainer = document.getElementById('maskableIcons');
+    
+    if (!regularIconsContainer || !maskableIconsContainer) return;
+    
+    // Check for existing PWA icons by trying to load them
+    const sizes = ['72', '96', '128', '144', '152', '192', '384', '512'];
+    
+    // Load regular icons
+    regularIconsContainer.innerHTML = '';
+    sizes.forEach(size => {
+        const iconUrl = `/static/pwa-icons/icon-${size}x${size}.png`;
+        const img = new Image();
+        img.onload = function() {
+            addIconToDisplay(regularIconsContainer, iconUrl, size, 'regular');
+        };
+        img.onerror = function() {
+            // Icon doesn't exist, ignore
+        };
+        img.src = iconUrl;
+    });
+    
+    // Load maskable icons
+    maskableIconsContainer.innerHTML = '';
+    sizes.forEach(size => {
+        const iconUrl = `/static/pwa-icons/icon-${size}x${size}-maskable.png`;
+        const img = new Image();
+        img.onload = function() {
+            addIconToDisplay(maskableIconsContainer, iconUrl, size, 'maskable');
+        };
+        img.onerror = function() {
+            // Icon doesn't exist, ignore
+        };
+        img.src = iconUrl;
+    });
+}
+
+function addIconToDisplay(container, iconUrl, size, iconType) {
+    const col = document.createElement('div');
+    col.className = 'col-md-3 mb-2';
+    
+    col.innerHTML = `
+        <div class="card text-center">
+            <div class="card-body p-2">
+                <img src="${iconUrl}" alt="${size}x${size} ${iconType}" style="max-width: 48px; max-height: 48px;" class="img-fluid mb-1">
+                <small class="d-block text-muted">${size}x${size}</small>
+                <button class="btn btn-outline-danger btn-sm mt-1" onclick="deletePWAIcon('${iconUrl}', '${size}', '${iconType}')">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </div>
+        </div>
+    `;
+    
+    container.appendChild(col);
+}
+
+function deletePWAIcon(iconUrl, size, iconType) {
+    if (!confirm(`Delete ${size}x${size} ${iconType} icon?`)) return;
+    
+    // Note: This would require implementing a delete endpoint
+    // For now, just show a message
+    showAlert('Icon deletion requires server-side implementation', 'info');
+}
