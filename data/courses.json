@@ -1,69 +1,22 @@
 {
     "modules": [
         {
-            "content_file": "welcome.html",
-            "description": "An introduction to the tutorial platform and its features",
-            "duration": 5,
-            "quiz": {
-                "questions": [
-                    {
-                        "question": "Which key combination allows you to navigate between modules?",
-                        "options": [
-                            "\u2190 \u2192 Arrow keys",
-                            "WASD keys",
-                            "Tab and Shift+Tab",
-                            "Page Up/Page Down"
-                        ],
-                        "correct_answer": 0
-                    },
-                    {
-                        "question": "What happens when you press the Space key on a module?",
-                        "options": [
-                            "Opens the module",
-                            "Bookmarks the module",
-                            "Marks the module as complete",
-                            "Starts the video"
-                        ],
-                        "correct_answer": 2
-                    },
-                    {
-                        "question": "How can administrators access the admin panel?",
-                        "options": [
-                            "Click the Admin button in the navigation",
-                            "Go to /admin URL directly",
-                            "Use the settings menu",
-                            "Contact support"
-                        ],
-                        "correct_answer": 1
-                    }
-                ]
-            },
-            "resources": [
-                {
-                    "name": "Resources",
-                    "url": "https://www.kea.nu/files/textbooks/humblesec/hacking_artofexploitation_2ndedition.pdf"
-                }
-            ],
-            "title": "Welcome to the Tutorial Platform",
-            "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
-        },
-        {
             "title": "A Detailed Guide on PassTheCert",
             "description": "A Detailed Guide on PassTheCert\nPass-the-Certificate is a highly effective Kerberos privilege escalation method that bypasses traditional password-based authentication. Instead of relying on passwords...",
-            "content_file": "content_1.html",
+            "content_file": "content_0.html",
             "duration": "15 min",
             "source_url": "https://www.hackingarticles.in/a-detailed-guide-on-passthecert/",
             "imported_images": [
-                "20250914_171659_1.png",
-                "20250914_171659_2.png",
-                "20250914_171700_3.png",
-                "20250914_171700_5.png",
-                "20250914_171701_6.png",
-                "20250914_171701_7.png",
-                "20250914_171702_8.png",
-                "20250914_171703_9.png",
-                "20250914_171703_10.png",
-                "20250914_171704_11.png"
+                "20250914_173742_1.png",
+                "20250914_173742_2.png",
+                "20250914_173743_3.png",
+                "20250914_173743_5.png",
+                "20250914_173743_6.png",
+                "20250914_173744_7.png",
+                "20250914_173744_8.png",
+                "20250914_173745_9.png",
+                "20250914_173745_10.png",
+                "20250914_173746_11.png"
             ],
             "quiz": {
                 "questions": [

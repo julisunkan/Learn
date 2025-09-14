@@ -19,6 +19,8 @@ from werkzeug.security import generate_password_hash, check_password_hash
 # Import URL content scraping and quiz generation functionality  
 from nlp_quiz import WebContentImporter
 import logging
+import socket
+import ipaddress
 
 app = Flask(__name__)
 # Require secure session secret
@@ -239,6 +241,67 @@ def save_courses(courses):
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# Security: Define blocked IP ranges to prevent SSRF attacks
+BLOCKED_NETWORKS = [
+    ipaddress.ip_network('127.0.0.0/8'),      # localhost
+    ipaddress.ip_network('10.0.0.0/8'),       # RFC1918 private
+    ipaddress.ip_network('172.16.0.0/12'),    # RFC1918 private
+    ipaddress.ip_network('192.168.0.0/16'),   # RFC1918 private
+    ipaddress.ip_network('169.254.0.0/16'),   # link-local
+    ipaddress.ip_network('224.0.0.0/4'),      # multicast
+    ipaddress.ip_network('::1/128'),          # IPv6 localhost
+    ipaddress.ip_network('fc00::/7'),         # IPv6 private
+    ipaddress.ip_network('fe80::/10'),        # IPv6 link-local
+]
+
+def validate_url_security(url):
+    """
+    Validate URL to prevent SSRF attacks by blocking access to internal/private networks
+    """
+    parsed = urllib.parse.urlparse(url)
+    
+    # Only allow HTTP/HTTPS schemes
+    if parsed.scheme not in ['http', 'https']:
+        raise ValueError(f"Unsupported URL scheme: {parsed.scheme}")
+    
+    if not parsed.netloc:
+        raise ValueError("Invalid URL: no network location")
+    
+    # Extract hostname (remove port if present)
+    hostname = parsed.hostname
+    if not hostname:
+        raise ValueError("Invalid URL: could not extract hostname")
+    
+    try:
+        # Resolve hostname to IP address
+        ip_info = socket.getaddrinfo(hostname, None)
+        if not ip_info:
+            raise ValueError(f"Could not resolve hostname: {hostname}")
+        
+        # Check all resolved IPs
+        for ip_data in ip_info:
+            ip_str = ip_data[4][0]  # Extract IP string from tuple
+            try:
+                ip_addr = ipaddress.ip_address(ip_str)
+                
+                # Check against blocked networks
+                for blocked_network in BLOCKED_NETWORKS:
+                    if ip_addr in blocked_network:
+                        raise ValueError(f"Access to {ip_str} ({hostname}) is blocked for security reasons")
+                
+                logger.debug(f"URL security check passed for {hostname} -> {ip_str}")
+                
+            except ValueError as e:
+                if "is blocked" in str(e):
+                    raise e
+                logger.warning(f"Could not parse IP address {ip_str}: {e}")
+                continue
+                
+    except socket.gaierror as e:
+        raise ValueError(f"DNS resolution failed for {hostname}: {e}")
+    except Exception as e:
+        raise ValueError(f"Security validation failed for {hostname}: {e}")
 
 def save_feedback(module_id, feedback_data):
     """Save feedback to feedback.json"""
@@ -635,52 +698,68 @@ def save_quiz_result():
     updated_progress = set_user_progress(user_fingerprint, module_id, progress_update)
     return jsonify({"success": True, "progress": updated_progress})
 
-@app.route('/download_resource')
-def download_resource():
-    """Server-side download proxy for external resources"""
-    resource_url = request.args.get('url')
-    resource_name = request.args.get('name', 'resource')
+def secure_fetch_with_redirect_validation(url, max_redirects=5, max_size=50*1024*1024, timeout=30):
+    """
+    Securely fetch URL with manual redirect handling and validation of each redirect target
+    """
+    current_url = url
+    redirect_count = 0
     
-    if not resource_url:
-        return "Missing resource URL", 400
-    
-    try:
-        # Validate URL
-        parsed_url = urllib.parse.urlparse(resource_url)
-        if not parsed_url.scheme or not parsed_url.netloc:
-            return "Invalid URL", 400
+    while redirect_count <= max_redirects:
+        # Validate current URL for security
+        validate_url_security(current_url)
         
-        # Fetch the resource
-        response = requests.get(resource_url, timeout=30, stream=True)
-        response.raise_for_status()
-        
-        # Determine content type and filename
-        content_type = response.headers.get('Content-Type', 'application/octet-stream')
-        content_disposition = response.headers.get('Content-Disposition', '')
-        
-        # Extract filename from URL or content-disposition header
-        if 'filename=' in content_disposition:
-            filename = content_disposition.split('filename=')[-1].strip('"')
-        else:
-            filename = os.path.basename(parsed_url.path) or f"{resource_name}.pdf"
-        
-        # Create a BytesIO buffer to store the content
-        buffer = io.BytesIO()
-        for chunk in response.iter_content(chunk_size=8192):
-            buffer.write(chunk)
-        buffer.seek(0)
-        
-        return send_file(
-            buffer,
-            as_attachment=True,
-            download_name=filename,
-            mimetype=content_type
+        # Fetch without following redirects, disable proxy usage
+        response = requests.get(
+            current_url, 
+            timeout=timeout, 
+            allow_redirects=False, 
+            stream=True,
+            trust_env=False,  # Disable environment proxy usage
+            proxies={}        # Explicitly disable proxies
         )
         
-    except requests.RequestException as e:
-        return f"Error downloading resource: {str(e)}", 500
-    except Exception as e:
-        return f"Server error: {str(e)}", 500
+        # If not a redirect, return the response
+        if response.status_code not in [301, 302, 303, 307, 308]:
+            response.raise_for_status()
+            return response
+        
+        # Handle redirect - validate the new location
+        location = response.headers.get('Location')
+        if not location:
+            raise ValueError("Redirect response missing Location header")
+        
+        # Convert relative URLs to absolute
+        if location.startswith('/'):
+            parsed_current = urllib.parse.urlparse(current_url)
+            current_url = f"{parsed_current.scheme}://{parsed_current.netloc}{location}"
+        elif not location.startswith(('http://', 'https://')):
+            # Relative path - join with current URL
+            current_url = urllib.parse.urljoin(current_url, location)
+        else:
+            current_url = location
+        
+        redirect_count += 1
+        
+        # Log redirect for security monitoring
+        logger.warning(f"Following redirect {redirect_count}/{max_redirects}: {location}")
+    
+    raise ValueError(f"Too many redirects (max {max_redirects})")
+
+@app.route('/download_resource')
+def download_resource():
+    """
+    Disabled for security reasons - SSRF vulnerability risk
+    
+    This endpoint has been disabled to prevent Server-Side Request Forgery (SSRF) attacks.
+    For security, external resource downloads should be handled client-side or through
+    a dedicated, isolated service with proper IP pinning and allowlist controls.
+    """
+    logger.warning("Attempt to access disabled download_resource endpoint")
+    return jsonify({
+        "error": "Resource download endpoint disabled for security",
+        "message": "This feature has been disabled to prevent SSRF attacks. Please download resources directly from your browser."
+    }), 403
 
 @app.route('/generate_certificate')
 def generate_certificate():
