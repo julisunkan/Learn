@@ -48,9 +48,6 @@ def generate_csrf_token():
 
 def validate_csrf_token():
     """Validate CSRF token from request headers"""
-    if not session.get('admin_authenticated', False):
-        return True  # Skip CSRF for non-authenticated requests (they'll fail auth anyway)
-    
     session_token = session.get('csrf_token')
     request_token = request.headers.get('X-CSRF-Token')
     
@@ -63,8 +60,8 @@ def validate_csrf_token():
 def check_csrf_on_admin_routes():
     """Apply CSRF protection to all admin POST/PUT/DELETE requests"""
     if request.path.startswith('/admin') and request.method in ['POST', 'PUT', 'DELETE']:
-        # Skip CSRF for login and token endpoints
-        if request.path in ['/admin/verify_passcode', '/admin/csrf-token']:
+        # Skip CSRF for token endpoint
+        if request.path in ['/admin/csrf-token']:
             return
         
         if not validate_csrf_token():
@@ -194,7 +191,7 @@ def load_config():
             "font_size": "16px",
             "font_family": "Arial, sans-serif",
             "admin_passcode": "admin123",
-            "enable_passcode": True
+            "enable_passcode": False
         }
 
 def save_config(config):
@@ -295,46 +292,22 @@ def module_detail(module_id):
                          progress=module_progress)
 
 @app.route('/admin')
-def admin_login():
-    """Admin login page"""
-    config = load_config()
-    return render_template('admin.html', config=config, mode='login')
-
-@app.route('/admin/dashboard')
 def admin_dashboard():
-    """Main admin dashboard"""
-    if not session.get('admin_authenticated', False):
-        return redirect(url_for('admin_login'))
-    
+    """Admin panel - direct access"""
     config = load_config()
     courses = load_courses()
     return render_template('admin.html', config=config, courses=courses, mode='dashboard')
 
+
 @app.route('/admin/csrf-token')
 def get_csrf_token():
-    """Get CSRF token for authenticated admin session"""
-    if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401
-    
+    """Get CSRF token for admin session"""
     return jsonify({"csrf_token": generate_csrf_token()})
 
-@app.route('/admin/verify_passcode', methods=['POST'])
-def verify_passcode():
-    """Verify admin passcode"""
-    config = load_config()
-    entered_passcode = (request.json or {}).get('passcode')
-    
-    if not config.get('enable_passcode', True) or entered_passcode == config.get('admin_passcode'):
-        session['admin_authenticated'] = True
-        return jsonify({"success": True})
-    else:
-        return jsonify({"success": False})
 
 @app.route('/admin/config', methods=['GET', 'POST'])
 def admin_config():
     """Handle site configuration"""
-    if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     if request.method == 'POST':
         config = request.json or {}
@@ -346,8 +319,6 @@ def admin_config():
 @app.route('/admin/modules', methods=['GET', 'POST', 'PUT', 'DELETE'])  # type: ignore
 def admin_modules():
     """Handle module management"""
-    if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     courses = load_courses()
     
@@ -401,8 +372,6 @@ def admin_modules():
 @app.route('/admin/upload_resource', methods=['POST'])
 def upload_resource():
     """Handle file uploads for resources"""
-    if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "No file selected"})
@@ -431,8 +400,6 @@ def upload_resource():
 @app.route('/admin/upload_pwa_icon', methods=['POST'])
 def upload_pwa_icon():
     """Handle PWA icon upload and generate all required sizes"""
-    if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     if 'icon' not in request.files:
         return jsonify({"success": False, "error": "No icon file selected"})
@@ -696,8 +663,6 @@ def generate_certificate():
 @app.route('/admin/export_course')
 def export_course():
     """Export entire course as ZIP file"""
-    if not session.get('admin_authenticated', False):
-        return redirect(url_for('admin_login'))
     
     buffer = io.BytesIO()
     
@@ -731,8 +696,6 @@ def export_course():
 @app.route('/admin/import_course', methods=['POST'])
 def import_course():
     """Import course from ZIP file"""
-    if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401  # type: ignore
     
     if 'file' not in request.files:
         return jsonify({"success": False, "error": "No file selected"})
@@ -810,8 +773,6 @@ def import_course():
 @app.route('/admin/import_url', methods=['POST'])
 def admin_import_url():
     """Import content from URL with automatic quiz generation"""
-    if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401
     
     try:
         data = request.json or {}
@@ -894,8 +855,6 @@ def admin_import_url():
 @app.route('/admin/generate_quiz', methods=['POST'])
 def admin_generate_quiz():
     """Generate quiz from existing content or provided text"""
-    if not session.get('admin_authenticated', False):
-        return jsonify({"error": "Authentication required"}), 401
     
     try:
         data = request.json or {}

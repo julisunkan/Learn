@@ -4,44 +4,7 @@ let currentModules = [];
 let currentEditingModule = -1;
 let autoSaveInterval;
 
-// Admin Login Functions
-function initializeAdminLogin() {
-    const loginForm = document.getElementById('adminLoginForm');
-    if (loginForm) {
-        loginForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            verifyPasscode();
-        });
-    }
-}
-
-function verifyPasscode() {
-    const passcode = document.getElementById('passcode').value;
-    console.log('Verifying passcode...'); // Debug log
-    
-    fetch('/admin/verify_passcode', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ passcode: passcode })
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('Login response:', data); // Debug log
-        if (data.success) {
-            console.log('Login successful, redirecting...'); // Debug log
-            window.location.href = '/admin/dashboard';
-        } else {
-            console.log('Login failed'); // Debug log
-            alert('Invalid passcode. Please try again.');
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error verifying passcode.');
-    });
-}
+// Admin panel is now directly accessible - no login needed
 
 // Admin Dashboard Functions
 function initializeAdminDashboard() {

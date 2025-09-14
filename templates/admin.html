@@ -3,40 +3,7 @@
 {% block title %}Admin Panel - {{ config.site_title }}{% endblock %}
 
 {% block content %}
-<div class="container-fluid" data-login-mode="{{ 'true' if mode == 'login' else 'false' }}">
-    {% if mode == 'login' %}
-    <!-- Admin Login -->
-    <div class="row justify-content-center mt-5">
-        <div class="col-md-4">
-            <div class="card">
-                <div class="card-header text-center">
-                    <h4><i class="bi bi-shield-lock"></i> Admin Access</h4>
-                </div>
-                <div class="card-body">
-                    {% if config.enable_passcode %}
-                    <form id="adminLoginForm">
-                        <div class="mb-3">
-                            <label for="passcode" class="form-label">Enter Passcode:</label>
-                            <input type="password" class="form-control" id="passcode" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary w-100">
-                            <i class="bi bi-unlock"></i> Access Admin Panel
-                        </button>
-                    </form>
-                    {% else %}
-                    <div class="text-center">
-                        <p>Passcode protection is disabled.</p>
-                        <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">
-                            <i class="bi bi-gear"></i> Go to Dashboard
-                        </a>
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {% else %}
+<div class="container-fluid">
     <!-- Admin Dashboard -->
     <div class="row mb-4">
         <div class="col-12">
@@ -569,19 +536,13 @@
 
 {% block scripts %}
 <script>
-const isLoginMode = document.querySelector('.container-fluid').getAttribute('data-login-mode') === 'true';
-
 document.addEventListener('DOMContentLoaded', function() {
-    if (isLoginMode) {
-        initializeAdminLogin();
-    } else {
-        initializeAdminDashboard();
-        loadModules();
-        loadFeedback();
-        initializeConfigPreview();
-        initializeAutoSave();
-        initializePWASettings();
-    }
+    initializeAdminDashboard();
+    loadModules();
+    loadFeedback();
+    initializeConfigPreview();
+    initializeAutoSave();
+    initializePWASettings();
 });
 </script>
 <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
