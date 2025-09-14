@@ -14,6 +14,16 @@
     <meta name="apple-mobile-web-app-title" content="{{ config.site_title or 'Tutorial Platform' }}">
     <meta name="mobile-web-app-capable" content="yes">
     
+    <!-- iOS Support -->
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='pwa-icons/icon-192x192.png') }}">
+    <link rel="apple-touch-icon" sizes="152x152" href="{{ url_for('static', filename='pwa-icons/icon-192x192.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='pwa-icons/icon-192x192.png') }}">
+    <link rel="apple-touch-icon" sizes="167x167" href="{{ url_for('static', filename='pwa-icons/icon-192x192.png') }}">
+    
+    <!-- Microsoft Application Tiles -->
+    <meta name="msapplication-TileColor" content="{{ config.primary_color or '#007bff' }}">
+    <meta name="msapplication-TileImage" content="{{ url_for('static', filename='pwa-icons/icon-192x192.png') }}">
+    
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Bootstrap Icons -->
@@ -87,15 +97,63 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/static/sw.js')
-                    .then(function(registration) {
-                        console.log('Service Worker registered with scope:', registration.scope);
-                    })
-                    .catch(function(error) {
-                        console.log('Service Worker registration failed:', error);
+                navigator.serviceWorker.register('/sw.js', {
+                    scope: '/'
+                })
+                .then(function(registration) {
+                    console.log('Service Worker registered with scope:', registration.scope);
+                    
+                    // Check for updates periodically
+                    registration.addEventListener('updatefound', function() {
+                        console.log('New service worker version available');
+                        const newWorker = registration.installing;
+                        newWorker.addEventListener('statechange', function() {
+                            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                                // Show update notification
+                                if (confirm('New version available! Refresh to update?')) {
+                                    window.location.reload();
+                                }
+                            }
+                        });
                     });
+                })
+                .catch(function(error) {
+                    console.log('Service Worker registration failed:', error);
+                });
+
+                // Listen for service worker messages
+                navigator.serviceWorker.addEventListener('message', function(event) {
+                    if (event.data && event.data.type === 'SKIP_WAITING') {
+                        window.location.reload();
+                    }
+                });
             });
         }
+        
+        // PWA Install Prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', function(e) {
+            console.log('PWA install prompt available');
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Show custom install button (can be added to UI later)
+            const installBtn = document.getElementById('install-btn');
+            if (installBtn) {
+                installBtn.style.display = 'block';
+                installBtn.addEventListener('click', function() {
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then(function(choiceResult) {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('User accepted PWA install');
+                        } else {
+                            console.log('User dismissed PWA install');
+                        }
+                        deferredPrompt = null;
+                    });
+                });
+            }
+        });
     </script>
     
     {% block scripts %}{% endblock %}

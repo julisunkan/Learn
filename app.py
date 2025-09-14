@@ -663,6 +663,14 @@ def manifest():
     response.headers['Content-Type'] = 'application/manifest+json'
     return response
 
+@app.route('/sw.js')
+def service_worker():
+    """Serve service worker from root path for proper scope"""
+    response = app.send_static_file('sw.js')
+    response.headers['Content-Type'] = 'application/javascript'
+    response.headers['Cache-Control'] = 'no-cache'
+    return response
+
 @app.route('/admin/upload_pwa_icon', methods=['POST'])
 def upload_pwa_icon():
     """Handle PWA icon uploads"""
