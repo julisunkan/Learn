@@ -25,7 +25,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "uv run python app.py"
+args = "uv run python main.py"
 waitForPort = 5000
 
 [workflows.workflow.metadata]
