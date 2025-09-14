@@ -312,7 +312,7 @@ function updateResource(index, field, value) {
     // This is handled by the onchange events in the rendered HTML
 }
 
-function saveModule() {
+async function saveModule() {
     const moduleData = {
         title: document.getElementById('moduleTitle').value,
         description: document.getElementById('moduleDescription').value,
@@ -324,6 +324,13 @@ function saveModule() {
     // Validate required fields
     if (!moduleData.title.trim()) {
         showAlert('Module title is required.', 'warning');
+        return;
+    }
+    
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        showAlert('Security token error. Please refresh the page.', 'danger');
         return;
     }
     
@@ -350,7 +357,8 @@ function saveModule() {
         fetch('/admin/modules', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token
             },
             body: JSON.stringify(moduleData)
         })
@@ -375,7 +383,8 @@ function saveModule() {
         fetch('/admin/modules', {
             method: 'PUT',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token
             },
             body: JSON.stringify({ modules: currentModules })
         })
@@ -396,15 +405,23 @@ function saveModule() {
     }
 }
 
-function deleteModule(moduleId) {
+async function deleteModule(moduleId) {
     if (!confirm('Are you sure you want to delete this module? This action cannot be undone.')) {
+        return;
+    }
+    
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        showAlert('Security token error. Please refresh the page.', 'danger');
         return;
     }
     
     fetch('/admin/modules', {
         method: 'DELETE',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': token
         },
         body: JSON.stringify({ module_id: moduleId })
     })
@@ -468,7 +485,7 @@ function getModuleFromForm() {
     };
 }
 
-function updateModuleOrder() {
+async function updateModuleOrder() {
     // Get new order from DOM
     const moduleItems = document.querySelectorAll('.module-item');
     const newOrder = Array.from(moduleItems).map(item => {
@@ -476,11 +493,20 @@ function updateModuleOrder() {
         return currentModules[moduleId];
     });
     
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        showAlert('Security token error. Please refresh the page.', 'danger');
+        loadModules(); // Reload to reset order
+        return;
+    }
+    
     // Update server
     fetch('/admin/modules', {
         method: 'PUT',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': token
         },
         body: JSON.stringify({ modules: newOrder })
     })
@@ -515,7 +541,7 @@ function initializePwaIconManagement() {
     loadCurrentPwaIcons();
 }
 
-function uploadPwaIcon() {
+async function uploadPwaIcon() {
     const form = document.getElementById('uploadPwaIconForm');
     const fileInput = document.getElementById('pwaIconFile');
     const statusDiv = document.getElementById('pwaUploadStatus');
@@ -534,6 +560,13 @@ function uploadPwaIcon() {
         return;
     }
     
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        showAlert('Security token error. Please refresh the page.', 'danger');
+        return;
+    }
+    
     // Show progress
     statusDiv.style.display = 'block';
     progressBar.style.width = '10%';
@@ -543,6 +576,9 @@ function uploadPwaIcon() {
     
     fetch('/admin/upload_pwa_icon', {
         method: 'POST',
+        headers: {
+            'X-CSRF-Token': token
+        },
         body: formData
     })
     .then(response => {
@@ -636,7 +672,7 @@ function loadConfiguration() {
         });
 }
 
-function saveConfiguration() {
+async function saveConfiguration() {
     const config = {
         site_title: document.getElementById('siteTitle').value,
         site_description: document.getElementById('siteDescription').value,
@@ -649,10 +685,18 @@ function saveConfiguration() {
         admin_passcode: document.getElementById('adminPasscode').value
     };
     
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        showAlert('Security token error. Please refresh the page.', 'danger');
+        return;
+    }
+    
     fetch('/admin/config', {
         method: 'POST',
         headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': token
         },
         body: JSON.stringify(config)
     })
@@ -715,7 +759,7 @@ function updateConfigPreview() {
 }
 
 // Import/Export Functions
-function importCourse() {
+async function importCourse() {
     const fileInput = document.getElementById('importFile');
     const file = fileInput.files[0];
     
@@ -724,11 +768,21 @@ function importCourse() {
         return;
     }
     
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        showAlert('Security token error. Please refresh the page.', 'danger');
+        return;
+    }
+    
     const formData = new FormData();
     formData.append('file', file);
     
     fetch('/admin/import_course', {
         method: 'POST',
+        headers: {
+            'X-CSRF-Token': token
+        },
         body: formData
     })
     .then(response => response.json())
