@@ -46,6 +46,107 @@
             ],
             "title": "Welcome to the Tutorial Platform",
             "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
+        },
+        {
+            "title": "A Detailed Guide on PassTheCert",
+            "description": "A Detailed Guide on PassTheCert\nPass-the-Certificate is a highly effective Kerberos privilege escalation method that bypasses traditional password-based authentication. Instead of relying on passwords...",
+            "content_file": "content_1.html",
+            "duration": "15 min",
+            "source_url": "https://www.hackingarticles.in/a-detailed-guide-on-passthecert/",
+            "imported_images": [
+                "20250914_171659_1.png",
+                "20250914_171659_2.png",
+                "20250914_171700_3.png",
+                "20250914_171700_5.png",
+                "20250914_171701_6.png",
+                "20250914_171701_7.png",
+                "20250914_171702_8.png",
+                "20250914_171703_9.png",
+                "20250914_171703_10.png",
+                "20250914_171704_11.png"
+            ],
+            "quiz": {
+                "questions": [
+                    {
+                        "type": "multiple_choice",
+                        "question": "What is a post-exploitation technique where an attacker uses a certificate and its corresponding private key to authenticate to Active Directory services?",
+                        "options": [
+                            "Pass-the-Certificate (PtC)",
+                            "Key",
+                            "Admin",
+                            "Certificate"
+                        ],
+                        "answer_index": 0,
+                        "explanation": "Based on the content: Pass-the-Certificate (PtC) is a post-exploitation technique where an attacker uses a certificate and..."
+                    },
+                    {
+                        "type": "multiple_choice",
+                        "question": "Which term is most relevant to: 'If an attacker can extract or generate a certificate associated with a privilege...'?",
+                        "options": [
+                            "Admin",
+                            "Key",
+                            "Certificate",
+                            "Crt"
+                        ],
+                        "answer_index": 0,
+                        "explanation": "Based on context analysis"
+                    },
+                    {
+                        "type": "multiple_choice",
+                        "question": "Which term is most relevant to: 'A Detailed Guide on PassTheCert\nPass-the-Certificate is a highly effective Kerbe...'?",
+                        "options": [
+                            "Certificate",
+                            "Key",
+                            "Admin",
+                            "Crt"
+                        ],
+                        "answer_index": 0,
+                        "explanation": "Based on context analysis"
+                    },
+                    {
+                        "type": "multiple_choice",
+                        "question": "Which term is most relevant to: 'crt certipy-ad cert -pfx administrator...'?",
+                        "options": [
+                            "Crt",
+                            "Key",
+                            "Admin",
+                            "Certificate"
+                        ],
+                        "answer_index": 0,
+                        "explanation": "Based on context analysis"
+                    },
+                    {
+                        "type": "multiple_choice",
+                        "question": "Which term is most relevant to: 'If an attacker can extract or generate a certificate associated with a privilege...'?",
+                        "options": [
+                            "Administrator",
+                            "Key",
+                            "Admin",
+                            "Certificate"
+                        ],
+                        "answer_index": 0,
+                        "explanation": "Based on context analysis"
+                    },
+                    {
+                        "type": "true_false",
+                        "question": "A Detailed Guide on PassTheCert\nPass-the-Certificate is a highly effective Kerberos privilege escalation method that bypasses traditional password-based authentication",
+                        "answer": true,
+                        "explanation": "This statement is directly from the content"
+                    },
+                    {
+                        "type": "true_false",
+                        "question": "It is not true that instead of relying on passwords or hashes, it uses x",
+                        "answer": false,
+                        "explanation": "This statement has been modified from the original content"
+                    },
+                    {
+                        "type": "true_false",
+                        "question": "509 certificates and private keys to exploit the PKINIT (Public Key Cryptography for Initial Authentication) extension",
+                        "answer": true,
+                        "explanation": "This statement is directly from the content"
+                    }
+                ]
+            }
         }
     ]
 }

