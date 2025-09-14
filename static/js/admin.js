@@ -576,7 +576,7 @@ async function previewModule(moduleId = -1) {
 }
 
 function getModuleFromForm() {
-    return {
+    const moduleData = {
         title: document.getElementById('moduleTitle').value,
         description: document.getElementById('moduleDescription').value,
         video_url: document.getElementById('moduleVideoUrl').value,
@@ -584,14 +584,34 @@ function getModuleFromForm() {
         content: document.getElementById('moduleContent').value,
         quiz: { questions: getCurrentQuizQuestions() }
     };
+    
+    // Preserve stable module_id if editing existing module
+    const currentModuleIndex = currentEditingModule;
+    if (currentModuleIndex !== null && currentModules[currentModuleIndex] && currentModules[currentModuleIndex].module_id) {
+        moduleData.module_id = currentModules[currentModuleIndex].module_id;
+    }
+    
+    // Preserve content_file if it exists
+    if (currentModuleIndex !== null && currentModules[currentModuleIndex] && currentModules[currentModuleIndex].content_file) {
+        moduleData.content_file = currentModules[currentModuleIndex].content_file;
+    }
+    
+    return moduleData;
 }
 
 async function updateModuleOrder() {
-    // Get new order from DOM
+    // Get new order from DOM using stable module IDs
     const moduleItems = document.querySelectorAll('.module-item');
     const newOrder = Array.from(moduleItems).map(item => {
-        const moduleId = parseInt(item.dataset.moduleId);
-        return currentModules[moduleId];
+        const moduleIndex = parseInt(item.dataset.moduleId);
+        const module = currentModules[moduleIndex];
+        
+        // Ensure module has stable ID - generate if missing
+        if (!module.module_id) {
+            module.module_id = 'module_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+        
+        return module;
     });
     
     // Get CSRF token

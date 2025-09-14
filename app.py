@@ -531,13 +531,26 @@ def admin_modules():
         # Get current modules to safely handle content updates
         current_modules = courses['modules']
         
-        # Process each module for content updates
-        for i, module_data in enumerate(new_order):
+        # Create a mapping of existing modules by ID for safe content updates
+        existing_modules_by_id = {}
+        for module in current_modules:
+            # Ensure all existing modules have stable IDs
+            if 'module_id' not in module:
+                import uuid
+                module['module_id'] = str(uuid.uuid4())
+            existing_modules_by_id[module['module_id']] = module
+        
+        # Process each module for content updates using stable IDs
+        for module_data in new_order:
+            # Ensure new modules have stable IDs  
+            if 'module_id' not in module_data:
+                import uuid
+                module_data['module_id'] = str(uuid.uuid4())
+            
             if 'content' in module_data:
-                # Find the corresponding existing module by checking if this is an update
-                existing_content_file = None
-                if i < len(current_modules) and 'content_file' in current_modules[i]:
-                    existing_content_file = current_modules[i]['content_file']
+                # Find the corresponding existing module by stable ID - NOT by index
+                existing_module = existing_modules_by_id.get(module_data['module_id'])
+                existing_content_file = existing_module.get('content_file') if existing_module else None
                 
                 if existing_content_file:
                     # Use the existing content file - NEVER trust client-provided paths
