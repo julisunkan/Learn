@@ -249,7 +249,9 @@ class WebContentImporter:
         
         for img_tag in img_tags:
             try:
-                img_src = img_tag.get('src') or img_tag.get('data-src')
+                img_src = None
+                if hasattr(img_tag, 'get'):
+                    img_src = img_tag.get('src') or img_tag.get('data-src')
                 if not img_src:
                     continue
                 
@@ -363,7 +365,7 @@ class WebContentImporter:
                 logger.info(f"Downloaded image: {filename}")
                 
             except Exception as e:
-                logger.warning(f"Failed to download image {img_src}: {str(e)}")
+                logger.warning(f"Failed to download image {img_src if 'img_src' in locals() else 'unknown'}: {str(e)}")
                 continue
         
         return downloaded_images
