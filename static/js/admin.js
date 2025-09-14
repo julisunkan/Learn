@@ -8,6 +8,11 @@ let autoSaveInterval;
 
 // Admin Dashboard Functions
 function initializeAdminDashboard() {
+    // Pre-fetch CSRF token when admin dashboard loads
+    getCsrfToken().catch(error => {
+        console.error('Failed to initialize CSRF token:', error);
+    });
+    
     // Initialize drag and drop for modules
     const modulesList = document.getElementById('modulesList');
     if (modulesList) {
@@ -1108,11 +1113,24 @@ let csrfToken = null;
 async function getCsrfToken() {
     if (!csrfToken) {
         try {
-            const response = await fetch('/admin/csrf-token');
-            const data = await response.json();
-            csrfToken = data.csrf_token;
+            const response = await fetch('/admin/csrf-token', {
+                credentials: 'same-origin'  // Ensure cookies are sent with request
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                csrfToken = data.csrf_token;
+            } else if (response.status === 401) {
+                // Authentication failed - redirect to login
+                window.location.href = '/admin/login';
+                return null;
+            } else {
+                console.error('Error fetching CSRF token:', response.status, response.statusText);
+                return null;
+            }
         } catch (error) {
             console.error('Error fetching CSRF token:', error);
+            return null;
         }
     }
     return csrfToken;
