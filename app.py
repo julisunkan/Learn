@@ -525,8 +525,46 @@ def admin_modules():
         return jsonify({"success": True, "module_id": len(courses['modules']) - 1})
     
     elif request.method == 'PUT':
-        # Update module order
+        # Update module order and content
         new_order = (request.json or {}).get('modules', [])
+        
+        # Get current modules to safely handle content updates
+        current_modules = courses['modules']
+        
+        # Process each module for content updates
+        for i, module_data in enumerate(new_order):
+            if 'content' in module_data:
+                # Find the corresponding existing module by checking if this is an update
+                existing_content_file = None
+                if i < len(current_modules) and 'content_file' in current_modules[i]:
+                    existing_content_file = current_modules[i]['content_file']
+                
+                if existing_content_file:
+                    # Use the existing content file - NEVER trust client-provided paths
+                    content_filename = existing_content_file
+                else:
+                    # Create new content file with UUID for uniqueness and security
+                    import uuid
+                    content_filename = f"content_{uuid.uuid4().hex[:8]}.html"
+                    module_data['content_file'] = content_filename
+                
+                # Validate filename for security - only allow safe filenames
+                if not content_filename or '/' in content_filename or '\\' in content_filename or '..' in content_filename:
+                    logger.error(f"Invalid content filename attempted: {content_filename}")
+                    return jsonify({"success": False, "error": "Invalid content file path"}), 400
+                
+                content_path = f"data/modules/{content_filename}"
+                
+                # Write content to file
+                os.makedirs('data/modules', exist_ok=True)
+                with open(content_path, 'w', encoding='utf-8') as f:
+                    f.write(module_data['content'])
+                
+                # Set the safe content_file reference
+                module_data['content_file'] = content_filename
+                # Remove content from module data to keep JSON clean
+                del module_data['content']
+        
         courses['modules'] = new_order
         save_courses(courses)
         return jsonify({"success": True})
