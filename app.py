@@ -15,6 +15,9 @@ import hashlib
 import time
 import requests
 import urllib.parse
+# Import URL content scraping and quiz generation functionality  
+from nlp_quiz import WebContentImporter
+import logging
 
 app = Flask(__name__)
 # Require secure session secret
@@ -27,6 +30,13 @@ UPLOAD_FOLDER = 'static/resources'
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'zip', 'mp4'}
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
+
+# Initialize web content importer for URL scraping and quiz generation
+content_importer = WebContentImporter(upload_folder=UPLOAD_FOLDER)
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 # Progress Storage Functions
 def load_user_progress():
@@ -756,6 +766,145 @@ def import_course():
             return jsonify({"success": False, "error": str(e)})
     
     return jsonify({"success": False, "error": "Invalid file type"})
+
+@app.route('/admin/import_url', methods=['POST'])
+def admin_import_url():
+    """Import content from URL with automatic quiz generation"""
+    if not session.get('admin_authenticated', False):
+        return jsonify({"error": "Authentication required"}), 401
+    
+    try:
+        data = request.json or {}
+        url = data.get('url', '').strip()
+        title = data.get('title', '').strip()
+        include_images = data.get('include_images', True)
+        generate_quiz = data.get('generate_quiz', True)
+        num_mcq = min(10, max(1, data.get('num_mcq', 5)))
+        num_tf = min(10, max(1, data.get('num_tf', 3)))
+        
+        if not url:
+            return jsonify({"success": False, "error": "URL is required"}), 400
+        
+        # Import content from URL
+        scraped_content = content_importer.scrape_url_content(url, include_images)
+        
+        # Use provided title or extracted title
+        module_title = title or scraped_content.get('title', f'Content from {url}')
+        
+        # Generate quiz if requested
+        quiz_data = {}
+        if generate_quiz and scraped_content.get('text'):
+            try:
+                quiz_data = content_importer.generate_quiz(
+                    scraped_content['text'], 
+                    num_mcq=num_mcq, 
+                    num_tf=num_tf
+                )
+            except Exception as e:
+                logger.warning(f"Quiz generation failed: {str(e)}")
+                quiz_data = {"questions": []}
+        
+        # Load courses and create new module
+        courses = load_courses()
+        module_id = len(courses['modules'])
+        
+        # Save content to file
+        content_filename = f"content_{module_id}.html"
+        content_path = f"data/modules/{content_filename}"
+        
+        os.makedirs('data/modules', exist_ok=True)
+        with open(content_path, 'w', encoding='utf-8') as f:
+            f.write(scraped_content['html'])
+        
+        # Create excerpt from text for description
+        text = scraped_content.get('text', '')
+        description = text[:200] + '...' if len(text) > 200 else text
+        
+        # Create new module
+        new_module = {
+            "title": module_title,
+            "description": description,
+            "content_file": content_filename,
+            "duration": "15 min",
+            "source_url": url,
+            "imported_images": scraped_content.get('images', [])
+        }
+        
+        # Add quiz if generated
+        if quiz_data.get('questions'):
+            new_module['quiz'] = quiz_data
+        
+        # Add module to courses
+        courses['modules'].append(new_module)
+        save_courses(courses)
+        
+        return jsonify({
+            "success": True,
+            "module_id": module_id,
+            "title": module_title,
+            "images_imported": len(scraped_content.get('images', [])),
+            "quiz_questions": len(quiz_data.get('questions', [])),
+            "content_length": len(text)
+        })
+        
+    except Exception as e:
+        logger.error(f"URL import error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/admin/generate_quiz', methods=['POST'])
+def admin_generate_quiz():
+    """Generate quiz from existing content or provided text"""
+    if not session.get('admin_authenticated', False):
+        return jsonify({"error": "Authentication required"}), 401
+    
+    try:
+        data = request.json or {}
+        module_id = data.get('module_id')
+        provided_text = data.get('text', '').strip()
+        num_mcq = min(10, max(1, data.get('num_mcq', 5)))
+        num_tf = min(10, max(1, data.get('num_tf', 3)))
+        persist = data.get('persist', False)
+        
+        # Get text content
+        text_content = provided_text
+        
+        if not text_content and module_id is not None:
+            # Load text from existing module
+            courses = load_courses()
+            if 0 <= module_id < len(courses['modules']):
+                module = courses['modules'][module_id]
+                content_file = module.get('content_file')
+                if content_file:
+                    content_path = f"data/modules/{content_file}"
+                    if os.path.exists(content_path):
+                        with open(content_path, 'r', encoding='utf-8') as f:
+                            html_content = f.read()
+                        # Extract text from HTML
+                        import re
+                        text_content = re.sub('<[^<]+?>', '', html_content)
+        
+        if not text_content:
+            return jsonify({"success": False, "error": "No text content available for quiz generation"}), 400
+        
+        # Generate quiz
+        quiz_data = content_importer.generate_quiz(text_content, num_mcq=num_mcq, num_tf=num_tf)
+        
+        # Persist quiz to module if requested
+        if persist and module_id is not None:
+            courses = load_courses()
+            if 0 <= module_id < len(courses['modules']):
+                courses['modules'][module_id]['quiz'] = quiz_data
+                save_courses(courses)
+        
+        return jsonify({
+            "success": True,
+            "quiz": quiz_data,
+            "num_questions": len(quiz_data.get('questions', []))
+        })
+        
+    except Exception as e:
+        logger.error(f"Quiz generation error: {str(e)}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/manifest.json')
 def manifest():
