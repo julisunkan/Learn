@@ -361,6 +361,43 @@ def module_detail(module_id):
                 html_content = markdown.markdown(content)
             else:
                 html_content = content
+        
+        # Sanitize HTML content for security (prevent XSS from imported content)
+        try:
+            import bleach
+            allowed_tags = ['p', 'br', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'strong', 'em', 'u', 'b', 'i', 
+                           'ul', 'ol', 'li', 'a', 'img', 'blockquote', 'pre', 'code', 'div', 'span']
+            allowed_attributes = {
+                'a': ['href', 'title', 'target'],
+                'img': ['src', 'alt', 'title', 'width', 'height', 'style'],
+                'div': ['class', 'style'],
+                'span': ['class', 'style'],
+                'p': ['style'],
+                'h1': ['style'], 'h2': ['style'], 'h3': ['style'], 'h4': ['style'], 'h5': ['style'], 'h6': ['style']
+            }
+            allowed_styles = ['max-width', 'width', 'height', 'margin', 'padding', 'text-align', 'float', 'clear']
+            allowed_protocols = ['http', 'https', 'mailto', 'data']
+            
+            # Use CSS sanitizer if available
+            try:
+                from bleach.css_sanitizer import CSSSanitizer
+                css_sanitizer = CSSSanitizer(allowed_css_properties=allowed_styles)
+                html_content = bleach.clean(html_content, tags=allowed_tags, 
+                                          attributes=allowed_attributes, 
+                                          protocols=allowed_protocols,
+                                          css_sanitizer=css_sanitizer, strip=True)
+            except ImportError:
+                # Fallback without CSS sanitizer
+                safe_attributes = {k: [attr for attr in v if attr != 'style'] 
+                                 for k, v in allowed_attributes.items()}
+                html_content = bleach.clean(html_content, tags=allowed_tags, 
+                                          attributes=safe_attributes, 
+                                          protocols=allowed_protocols, strip=True)
+        except ImportError:
+            # Bleach not available - fallback to basic HTML escaping for safety
+            import html
+            logger.warning("Bleach not available for HTML sanitization, using basic escaping")
+            html_content = f"<div style='background: #fff3cd; padding: 10px; border: 1px solid #ffeaa7; border-radius: 5px;'><strong>Content Warning:</strong> This imported content has been escaped for security. Install 'bleach' package for proper HTML rendering.</div><pre>{html.escape(html_content)}</pre>"
     
     # Load quiz if exists
     quiz_data = module.get('quiz', {})
@@ -510,6 +547,175 @@ def admin_modules():
             return jsonify({"success": True})
         
         return jsonify({"success": False, "error": "Invalid module ID"})
+
+@app.route('/admin/edit_content/<int:module_id>')
+@require_admin_auth()
+def admin_edit_content(module_id):
+    """WYSIWYG editor for module content"""
+    config = load_config()
+    courses = load_courses()
+    
+    if module_id < 0 or module_id >= len(courses['modules']):
+        return "Module not found", 404
+    
+    module = courses['modules'][module_id]
+    
+    # Load content if exists
+    content = ""
+    if 'content_file' in module:
+        content_path = f"data/modules/{module['content_file']}"
+        if os.path.exists(content_path):
+            with open(content_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+    
+    return render_template('content_editor.html', 
+                         config=config, 
+                         module=module, 
+                         module_id=module_id,
+                         content=content)
+
+@app.route('/admin/get_content/<int:module_id>')
+@require_admin_auth()
+def get_module_content(module_id):
+    """Get module content for editing"""
+    courses = load_courses()
+    
+    if module_id < 0 or module_id >= len(courses['modules']):
+        return jsonify({"success": False, "error": "Module not found"}), 404
+    
+    module = courses['modules'][module_id]
+    content = ""
+    
+    if 'content_file' in module:
+        content_path = f"data/modules/{module['content_file']}"
+        if os.path.exists(content_path):
+            with open(content_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+    
+    return jsonify({
+        "success": True,
+        "content": content,
+        "module": module
+    })
+
+@app.route('/admin/save_content/<int:module_id>', methods=['POST'])
+@require_admin_auth()
+def save_module_content(module_id):
+    """Save edited module content"""
+    courses = load_courses()
+    
+    if module_id < 0 or module_id >= len(courses['modules']):
+        return jsonify({"success": False, "error": "Module not found"}), 404
+    
+    data = request.json or {}
+    content = data.get('content', '')
+    
+    module = courses['modules'][module_id]
+    
+    # Ensure content file exists
+    if 'content_file' not in module:
+        module['content_file'] = f"content_{module_id}.html"
+    
+    content_path = f"data/modules/{module['content_file']}"
+    os.makedirs('data/modules', exist_ok=True)
+    
+    # Save content
+    with open(content_path, 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    # Update module metadata if provided
+    if 'title' in data:
+        module['title'] = data['title']
+    if 'description' in data:
+        module['description'] = data['description']
+    
+    save_courses(courses)
+    
+    return jsonify({"success": True, "message": "Content saved successfully"})
+
+@app.route('/admin/resize_image', methods=['POST'])
+@require_admin_auth()
+def resize_image():
+    """Resize an image to specified dimensions"""
+    data = request.json or {}
+    image_path = data.get('image_path', '')
+    width = data.get('width', 800)
+    height = data.get('height', 600)
+    
+    if not image_path:
+        return jsonify({"success": False, "error": "Image path is required"}), 400
+    
+    # Strict validation of dimensions
+    try:
+        width = int(width)
+        height = int(height)
+        if width < 10 or width > 2000 or height < 10 or height > 2000:
+            return jsonify({"success": False, "error": "Image dimensions must be between 10 and 2000 pixels"}), 400
+    except (ValueError, TypeError):
+        return jsonify({"success": False, "error": "Invalid dimensions"}), 400
+    
+    # Security check - ensure image is in static/resources
+    if not image_path.startswith('/static/resources/'):
+        return jsonify({"success": False, "error": "Invalid image path"}), 400
+    
+    # Remove leading slash and get absolute path
+    relative_path = image_path[1:]
+    
+    # Get the canonical path to prevent directory traversal
+    try:
+        full_path = os.path.realpath(relative_path)
+        resources_dir = os.path.realpath('static/resources')
+        
+        # Ensure the resolved path is actually within the resources directory
+        if not full_path.startswith(resources_dir + os.sep):
+            return jsonify({"success": False, "error": "Access denied: path outside allowed directory"}), 403
+            
+    except Exception as e:
+        return jsonify({"success": False, "error": "Invalid file path"}), 400
+    
+    if not os.path.exists(full_path):
+        return jsonify({"success": False, "error": "Image not found"}), 404
+    
+    # Validate it's actually an image file
+    if not full_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+        return jsonify({"success": False, "error": "File is not a valid image"}), 400
+    
+    try:
+        from PIL import Image
+        import uuid
+        
+        # Open and validate image
+        with Image.open(full_path) as img:
+            # Convert to RGB if necessary
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            
+            resized = img.resize((width, height), Image.Resampling.LANCZOS)
+            
+            # Generate secure filename with UUID to prevent conflicts and directory traversal
+            original_name = os.path.basename(full_path)
+            name_part, ext = os.path.splitext(original_name)
+            unique_id = str(uuid.uuid4())[:8]
+            new_filename = f"{name_part}_resized_{width}x{height}_{unique_id}{ext}"
+            
+            # Ensure new file is saved in resources directory
+            new_path = os.path.join('static', 'resources', new_filename)
+            
+            # Save resized image
+            resized.save(new_path, optimize=True, quality=85)
+            
+            # Return web-accessible path
+            web_path = f"/static/resources/{new_filename}"
+            
+            return jsonify({
+                "success": True, 
+                "new_path": web_path,
+                "message": f"Image resized to {width}x{height}"
+            })
+            
+    except Exception as e:
+        logger.error(f"Error resizing image {full_path}: {str(e)}")
+        return jsonify({"success": False, "error": "Error processing image"}), 500
 
 @app.route('/admin/upload_resource', methods=['POST'])
 @require_admin_auth()

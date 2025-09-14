@@ -111,6 +111,9 @@ function renderModulesList() {
                         <button class="btn btn-sm btn-outline-primary" onclick="editModule(${index})">
                             <i class="bi bi-pencil"></i>
                         </button>
+                        ${module.content_file ? `<button class="btn btn-sm btn-outline-secondary" onclick="editContent(${index})" title="Edit Content">
+                            <i class="bi bi-pencil-square"></i>
+                        </button>` : ''}
                         <button class="btn btn-sm btn-outline-info" onclick="previewModule(${index})">
                             <i class="bi bi-eye"></i>
                         </button>
@@ -144,6 +147,21 @@ function editModule(moduleId) {
     
     const modal = new bootstrap.Modal(document.getElementById('moduleModal'));
     modal.show();
+}
+
+function editContent(moduleId) {
+    if (moduleId < 0 || moduleId >= currentModules.length) return;
+    
+    const module = currentModules[moduleId];
+    
+    // Check if module has content to edit
+    if (!module.content_file) {
+        showAlert('This module does not have content to edit.', 'warning');
+        return;
+    }
+    
+    // Open content editor in new tab/window
+    window.open(`/admin/edit_content/${moduleId}`, '_blank');
 }
 
 function clearModuleForm() {

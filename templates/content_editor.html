@@ -1,0 +1,503 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Content - {{ module.title }} - {{ config.site_title }}{% endblock %}
+
+{% block head %}
+<!-- TinyMCE Editor -->
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<style>
+    .editor-toolbar {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .preview-container {
+        border: 1px solid #dee2e6;
+        border-radius: 0.375rem;
+        padding: 1rem;
+        background: white;
+        min-height: 400px;
+        max-height: 600px;
+        overflow-y: auto;
+    }
+    .image-resize-controls {
+        position: absolute;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 5px;
+        border-radius: 3px;
+        display: none;
+        z-index: 1000;
+    }
+    .image-resize-controls input {
+        width: 60px;
+        margin: 0 5px;
+        padding: 2px;
+        border: none;
+        border-radius: 2px;
+    }
+    .editor-section {
+        height: 500px;
+        overflow: hidden;
+    }
+    .preview-mode .editor-section {
+        display: none;
+    }
+    .edit-mode .preview-container {
+        display: none;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <h1><i class="bi bi-pencil-square"></i> Edit Content: {{ module.title }}</h1>
+                <div>
+                    <a href="/admin" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left"></i> Back to Admin
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Editor Toolbar -->
+    <div class="editor-toolbar">
+        <div class="row align-items-center">
+            <div class="col-md-6">
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary active" id="editModeBtn" onclick="setMode('edit')">
+                        <i class="bi bi-pencil"></i> Edit
+                    </button>
+                    <button type="button" class="btn btn-outline-info" id="previewModeBtn" onclick="setMode('preview')">
+                        <i class="bi bi-eye"></i> Preview
+                    </button>
+                </div>
+            </div>
+            <div class="col-md-6 text-end">
+                <button type="button" class="btn btn-success" onclick="saveContent()">
+                    <i class="bi bi-save"></i> Save Content
+                </button>
+                <button type="button" class="btn btn-info" onclick="refreshPreview()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh Preview
+                </button>
+            </div>
+        </div>
+        
+        <!-- Module Metadata -->
+        <div class="row mt-3">
+            <div class="col-md-6">
+                <label for="moduleTitle" class="form-label">Module Title</label>
+                <input type="text" class="form-control" id="moduleTitle" value="{{ module.title }}">
+            </div>
+            <div class="col-md-6">
+                <label for="moduleDescription" class="form-label">Description</label>
+                <input type="text" class="form-control" id="moduleDescription" value="{{ module.description or '' }}">
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Editor -->
+    <div class="row edit-mode">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-code-square"></i> Content Editor</h5>
+                </div>
+                <div class="card-body p-0">
+                    <div class="editor-section">
+                        <textarea id="contentEditor">{{ content|e }}</textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Container -->
+    <div class="row preview-mode" style="display: none;">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5><i class="bi bi-eye"></i> Content Preview</h5>
+                </div>
+                <div class="card-body">
+                    <div class="preview-container" id="previewContainer">
+                        <!-- Preview content will be loaded here -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Save Status -->
+    <div id="saveStatus" class="alert" style="display: none; position: fixed; top: 20px; right: 20px; z-index: 1050; min-width: 300px;">
+    </div>
+</div>
+
+<!-- Image Resize Modal -->
+<div class="modal fade" id="imageResizeModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Resize Image</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="imageWidth" class="form-label">Width (px)</label>
+                        <input type="number" class="form-control" id="imageWidth" min="50" max="1200" value="800">
+                    </div>
+                    <div class="col-md-6">
+                        <label for="imageHeight" class="form-label">Height (px)</label>
+                        <input type="number" class="form-control" id="imageHeight" min="50" max="1200" value="600">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <label class="form-check-label">
+                        <input type="checkbox" class="form-check-input" id="maintainAspectRatio" checked>
+                        Maintain aspect ratio
+                    </label>
+                </div>
+                <div class="mt-3">
+                    <img id="imagePreview" style="max-width: 100%; max-height: 200px;" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="applyImageResize()">Apply Resize</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentMode = 'edit';
+let currentImagePath = '';
+let originalImageWidth = 0;
+let originalImageHeight = 0;
+
+// Initialize TinyMCE Editor
+tinymce.init({
+    selector: '#contentEditor',
+    height: 450,
+    plugins: [
+        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
+        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
+        'insertdatetime', 'media', 'table', 'help', 'wordcount'
+    ],
+    toolbar: 'undo redo | blocks | bold italic forecolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | image link | code preview fullscreen | help',
+    content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
+    images_upload_handler: async function (blobInfo, success, failure) {
+        try {
+            // Create form data for image upload
+            const formData = new FormData();
+            formData.append('file', blobInfo.blob(), blobInfo.filename());
+            
+            // Get CSRF token
+            const token = await getCsrfToken();
+            if (!token) {
+                failure('Security token not available. Please refresh the page.');
+                return;
+            }
+            
+            // Upload image to resources folder
+            const response = await fetch('/admin/upload_resource', {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-Token': token
+                },
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                success(result.url);
+            } else {
+                failure('Upload failed: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Image upload error:', error);
+            failure('Upload failed: ' + error.message);
+        }
+    },
+    setup: function (editor) {
+        editor.on('init', function () {
+            console.log('TinyMCE editor initialized');
+        });
+        
+        // Add context menu for images
+        editor.on('contextmenu', function (e) {
+            const target = e.target;
+            if (target.tagName === 'IMG') {
+                e.preventDefault();
+                showImageResizeModal(target.src);
+            }
+        });
+        
+        // Double-click on images to resize
+        editor.on('dblclick', function (e) {
+            const target = e.target;
+            if (target.tagName === 'IMG') {
+                showImageResizeModal(target.src);
+            }
+        });
+    }
+});
+
+// Mode switching
+function setMode(mode) {
+    currentMode = mode;
+    
+    if (mode === 'edit') {
+        document.querySelector('.edit-mode').style.display = 'block';
+        document.querySelector('.preview-mode').style.display = 'none';
+        document.getElementById('editModeBtn').classList.add('active');
+        document.getElementById('previewModeBtn').classList.remove('active');
+    } else {
+        document.querySelector('.edit-mode').style.display = 'none';
+        document.querySelector('.preview-mode').style.display = 'block';
+        document.getElementById('editModeBtn').classList.remove('active');
+        document.getElementById('previewModeBtn').classList.add('active');
+        refreshPreview();
+    }
+}
+
+// Refresh preview
+function refreshPreview() {
+    const content = tinymce.get('contentEditor').getContent();
+    document.getElementById('previewContainer').innerHTML = content;
+    
+    // Add click handlers to images in preview for resizing
+    const images = document.querySelectorAll('#previewContainer img');
+    images.forEach(img => {
+        img.style.cursor = 'pointer';
+        img.addEventListener('dblclick', function() {
+            showImageResizeModal(this.src);
+        });
+    });
+}
+
+// Save content
+async function saveContent(isAutoSave = false) {
+    const content = tinymce.get('contentEditor').getContent();
+    const title = document.getElementById('moduleTitle').value;
+    const description = document.getElementById('moduleDescription').value;
+    
+    try {
+        const response = await fetch('/admin/save_content/{{ module_id }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': await getCsrfToken()
+            },
+            body: JSON.stringify({
+                content: content,
+                title: title,
+                description: description
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            if (!isAutoSave) {
+                showSaveStatus('Content saved successfully!', 'success');
+            } else {
+                // Show subtle auto-save indication
+                console.log('Auto-saved at', new Date().toLocaleTimeString());
+                const statusEl = document.getElementById('saveStatus');
+                statusEl.className = 'alert alert-info';
+                statusEl.textContent = '✓ Auto-saved';
+                statusEl.style.display = 'block';
+                setTimeout(() => {
+                    statusEl.style.display = 'none';
+                }, 1500);
+            }
+            lastSaveContent = content;
+        } else {
+            showSaveStatus('Error saving content: ' + result.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Save error:', error);
+        if (!isAutoSave) {
+            showSaveStatus('Error saving content: ' + error.message, 'danger');
+        }
+    }
+}
+
+// Show save status
+function showSaveStatus(message, type) {
+    const statusEl = document.getElementById('saveStatus');
+    statusEl.className = `alert alert-${type}`;
+    statusEl.textContent = message;
+    statusEl.style.display = 'block';
+    
+    setTimeout(() => {
+        statusEl.style.display = 'none';
+    }, 3000);
+}
+
+// Image resize modal
+function showImageResizeModal(imageSrc) {
+    currentImagePath = imageSrc;
+    
+    // Load image to get dimensions
+    const img = new Image();
+    img.onload = function() {
+        originalImageWidth = this.width;
+        originalImageHeight = this.height;
+        
+        document.getElementById('imageWidth').value = this.width;
+        document.getElementById('imageHeight').value = this.height;
+        document.getElementById('imagePreview').src = imageSrc;
+        
+        const modal = new bootstrap.Modal(document.getElementById('imageResizeModal'));
+        modal.show();
+    };
+    img.src = imageSrc;
+}
+
+// Maintain aspect ratio
+document.getElementById('imageWidth').addEventListener('input', function() {
+    if (document.getElementById('maintainAspectRatio').checked && originalImageWidth > 0) {
+        const ratio = originalImageHeight / originalImageWidth;
+        document.getElementById('imageHeight').value = Math.round(this.value * ratio);
+    }
+});
+
+document.getElementById('imageHeight').addEventListener('input', function() {
+    if (document.getElementById('maintainAspectRatio').checked && originalImageHeight > 0) {
+        const ratio = originalImageWidth / originalImageHeight;
+        document.getElementById('imageWidth').value = Math.round(this.value * ratio);
+    }
+});
+
+// Apply image resize
+async function applyImageResize() {
+    const width = document.getElementById('imageWidth').value;
+    const height = document.getElementById('imageHeight').value;
+    
+    try {
+        const response = await fetch('/admin/resize_image', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': await getCsrfToken()
+            },
+            body: JSON.stringify({
+                image_path: currentImagePath,
+                width: parseInt(width),
+                height: parseInt(height)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Update the image in the editor
+            const editor = tinymce.get('contentEditor');
+            const content = editor.getContent();
+            const updatedContent = content.replace(currentImagePath, result.new_path);
+            editor.setContent(updatedContent);
+            
+            showSaveStatus(result.message, 'success');
+            
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('imageResizeModal'));
+            modal.hide();
+            
+            // Refresh preview if in preview mode
+            if (currentMode === 'preview') {
+                refreshPreview();
+            }
+        } else {
+            showSaveStatus('Error resizing image: ' + result.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Resize error:', error);
+        showSaveStatus('Error resizing image: ' + error.message, 'danger');
+    }
+}
+
+// CSRF Token management
+let cachedCsrfToken = null;
+
+async function getCsrfToken() {
+    if (cachedCsrfToken) {
+        return cachedCsrfToken;
+    }
+    
+    try {
+        const response = await fetch('/admin/csrf-token');
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+        cachedCsrfToken = data.csrf_token;
+        return cachedCsrfToken;
+    } catch (error) {
+        console.error('Error getting CSRF token:', error);
+        showSaveStatus('Failed to get security token. Please refresh the page.', 'danger');
+        return null;
+    }
+}
+
+// Initialize CSRF token on page load
+document.addEventListener('DOMContentLoaded', function() {
+    getCsrfToken().then(token => {
+        if (!token) {
+            showSaveStatus('Warning: Security token not available. Some features may not work.', 'warning');
+        }
+    });
+});
+
+// Auto-save functionality with debouncing
+let autoSaveTimeout;
+let lastSaveContent = '';
+
+function scheduleAutoSave() {
+    if (autoSaveTimeout) {
+        clearTimeout(autoSaveTimeout);
+    }
+    
+    autoSaveTimeout = setTimeout(() => {
+        const currentContent = tinymce.get('contentEditor').getContent();
+        // Only auto-save if content has changed
+        if (currentContent !== lastSaveContent && currentMode === 'edit') {
+            lastSaveContent = currentContent;
+            saveContent(true); // Pass true to indicate this is an auto-save
+        }
+    }, 30000); // 30 seconds
+}
+
+// Schedule auto-save whenever content changes
+document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(() => {
+        if (tinymce.get('contentEditor')) {
+            tinymce.get('contentEditor').on('input', scheduleAutoSave);
+            tinymce.get('contentEditor').on('change', scheduleAutoSave);
+        }
+    }, 1000);
+});
+
+// Keyboard shortcuts
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey || e.metaKey) {
+        if (e.key === 's') {
+            e.preventDefault();
+            saveContent();
+        } else if (e.key === 'p') {
+            e.preventDefault();
+            setMode(currentMode === 'edit' ? 'preview' : 'edit');
+        }
+    }
+});
+</script>
+{% endblock %}
