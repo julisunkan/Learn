@@ -1,4 +1,4 @@
-modules = ["python-3.11", "nodejs-20", "web"]
+modules = ["python-3.11", "web", "nodejs-20"]
 [agent]
 expertMode = true
 integrations = ["web_scraper:1.0.0", "python_openai:1.0.0"]
@@ -36,7 +36,7 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 35315
+localPort = 42629
 externalPort = 3000
 
 [[ports]]
