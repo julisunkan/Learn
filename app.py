@@ -442,6 +442,24 @@ def upload_pwa_icon():
     except Exception as e:
         return jsonify({"success": False, "error": f"Error processing image: {str(e)}"})
 
+@app.route('/data/modules/<filename>')
+def serve_module_content(filename):
+    """Serve module content files for admin editing"""
+    # Security check - only allow specific file extensions
+    if not filename.endswith(('.html', '.md', '.txt')):
+        return "File type not allowed", 403
+    
+    file_path = os.path.join('data', 'modules', filename)
+    if not os.path.isfile(file_path):
+        return "File not found", 404
+    
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            content = f.read()
+        return content, 200, {'Content-Type': 'text/plain; charset=utf-8'}
+    except Exception as e:
+        return f"Error reading file: {str(e)}", 500
+
 @app.route('/submit_feedback', methods=['POST'])
 def submit_feedback():
     """Handle feedback submission"""
