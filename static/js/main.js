@@ -369,8 +369,12 @@ function navigateModules(direction) {
 
 // Utility Functions
 function showAlert(message, type = 'info') {
+    // Remove any existing alerts first
+    const existingAlerts = document.querySelectorAll('.main-alert');
+    existingAlerts.forEach(alert => alert.remove());
+    
     const alertHtml = `
-        <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+        <div class="alert alert-${type} alert-dismissible fade show main-alert mb-3" role="alert">
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
@@ -380,7 +384,21 @@ function showAlert(message, type = 'info') {
     const container = document.querySelector('.container') || document.querySelector('.container-fluid');
     if (container) {
         container.insertAdjacentHTML('afterbegin', alertHtml);
+        
+        // Scroll to the alert
+        const newAlert = container.querySelector('.main-alert');
+        if (newAlert) {
+            newAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
     }
+    
+    // Auto-remove after 5 seconds
+    setTimeout(() => {
+        const alert = document.querySelector('.main-alert');
+        if (alert) {
+            alert.remove();
+        }
+    }, 5000);
 }
 
 function formatDuration(minutes) {

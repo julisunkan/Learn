@@ -882,18 +882,42 @@ function loadAutoSavedData() {
 
 // Utility function
 function showAlert(message, type = 'info') {
+    // Remove any existing alerts first
+    const existingAlerts = document.querySelectorAll('.admin-alert');
+    existingAlerts.forEach(alert => alert.remove());
+    
     const alertHtml = `
-        <div class="alert alert-${type} alert-dismissible fade show position-fixed" 
-             style="top: 20px; right: 20px; z-index: 9999; min-width: 300px;" role="alert">
+        <div class="alert alert-${type} alert-dismissible fade show admin-alert mb-3" role="alert">
             ${message}
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
         </div>
     `;
-    document.body.insertAdjacentHTML('beforeend', alertHtml);
+    
+    // Find the best container for the alert based on current context
+    let container = null;
+    
+    // If we're in a modal, show alert in the modal
+    const openModal = document.querySelector('.modal.show .modal-body');
+    if (openModal) {
+        container = openModal;
+    } else {
+        // Show in the main admin content area
+        container = document.querySelector('.container-fluid') || document.querySelector('.container');
+    }
+    
+    if (container) {
+        container.insertAdjacentHTML('afterbegin', alertHtml);
+        
+        // Scroll to the alert
+        const newAlert = container.querySelector('.admin-alert');
+        if (newAlert) {
+            newAlert.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
     
     // Auto-remove after 5 seconds
     setTimeout(() => {
-        const alert = document.querySelector('.alert');
+        const alert = document.querySelector('.admin-alert');
         if (alert) {
             alert.remove();
         }
