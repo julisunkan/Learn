@@ -715,7 +715,6 @@ def secure_fetch_with_redirect_validation(url, max_redirects=5, max_size=50*1024
             timeout=timeout, 
             allow_redirects=False, 
             stream=True,
-            trust_env=False,  # Disable environment proxy usage
             proxies={}        # Explicitly disable proxies
         )
         
