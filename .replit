@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "python-3.11", "web"]
+modules = ["python-3.11", "web", "nodejs-20"]
 [agent]
 expertMode = true
 integrations = ["web_scraper:1.0.0", "python_openai:1.0.0"]
@@ -36,13 +36,9 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 46277
-externalPort = 3000
-
-[[ports]]
 localPort = 46863
 externalPort = 3001
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["gunicorn", "--bind", "0.0.0.0:5000", "--reuse-port", "main:app"]
+run = ["gunicorn", "--bind", "0.0.0.0:5000", "main:app"]

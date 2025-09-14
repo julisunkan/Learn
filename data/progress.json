@@ -52,5 +52,14 @@
         "notes": "Test note",
         "bookmarked": false,
         "last_updated": "2025-09-14T16:30:20.160793"
+    },
+    "43096bd6-914f-4f11-8597-53a9077c87b8_0": {
+        "user_fingerprint": "43096bd6-914f-4f11-8597-53a9077c87b8",
+        "module_id": 0,
+        "completed": true,
+        "quiz_score": null,
+        "notes": "",
+        "bookmarked": false,
+        "last_updated": "2025-09-14T17:31:40.748862"
     }
 }
