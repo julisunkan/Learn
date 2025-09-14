@@ -83,7 +83,7 @@
                         <div class="card-body">
                             <small class="text-muted">
                                 • Drag and drop modules to reorder<br>
-                                • Click edit to modify module content<br>
+                                • Click "Edit" to modify all module details and content<br>
                                 • Use the preview feature before saving<br>
                                 • Video URLs should be direct MP4 links<br>
                                 • HTML content supports basic formatting
@@ -534,6 +534,8 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- TinyMCE Editor -->
+<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     initializeAdminDashboard();

@@ -25,6 +25,9 @@ function initializeAdminDashboard() {
         });
     }
     
+    // Initialize TinyMCE for content editing
+    initializeTinyMCE();
+    
     // Initialize config form
     const configForm = document.getElementById('configForm');
     if (configForm) {
@@ -68,6 +71,61 @@ function initializeAdminDashboard() {
     initializePwaIconManagement();
 }
 
+// TinyMCE Functions
+function initializeTinyMCE() {
+    // Initialize TinyMCE when the modal is shown
+    const moduleModal = document.getElementById('moduleModal');
+    if (moduleModal) {
+        moduleModal.addEventListener('shown.bs.modal', function() {
+            if (!tinymce.get('moduleContent')) {
+                tinymce.init({
+                    selector: '#moduleContent',
+                    height: 300,
+                    menubar: false,
+                    plugins: [
+                        'advlist autolink lists link image charmap print preview anchor',
+                        'searchreplace visualblocks code fullscreen',
+                        'insertdatetime media table paste code help wordcount'
+                    ],
+                    toolbar: 'undo redo | formatselect | ' +
+                        'bold italic backcolor | alignleft aligncenter ' +
+                        'alignright alignjustify | bullist numlist outdent indent | ' +
+                        'removeformat | code | help',
+                    content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
+                    setup: function(editor) {
+                        editor.on('change', function() {
+                            editor.save();
+                        });
+                    }
+                });
+            }
+        });
+        
+        moduleModal.addEventListener('hidden.bs.modal', function() {
+            if (tinymce.get('moduleContent')) {
+                tinymce.get('moduleContent').destroy();
+            }
+        });
+    }
+}
+
+function getTinyMCEContent() {
+    const editor = tinymce.get('moduleContent');
+    if (editor) {
+        return editor.getContent();
+    }
+    return document.getElementById('moduleContent').value;
+}
+
+function setTinyMCEContent(content) {
+    const editor = tinymce.get('moduleContent');
+    if (editor) {
+        editor.setContent(content || '');
+    } else {
+        document.getElementById('moduleContent').value = content || '';
+    }
+}
+
 // Module Management Functions
 function loadModules() {
     fetch('/admin/modules')
@@ -108,16 +166,13 @@ function renderModulesList() {
                         </div>
                     </div>
                     <div class="btn-group">
-                        <button class="btn btn-sm btn-outline-primary" onclick="editModule(${index})">
-                            <i class="bi bi-pencil"></i>
+                        <button class="btn btn-sm btn-outline-primary" onclick="editModule(${index})" title="Edit Module">
+                            <i class="bi bi-pencil"></i> Edit
                         </button>
-                        ${module.content_file ? `<button class="btn btn-sm btn-outline-secondary" onclick="editContent(${index})" title="Edit Content">
-                            <i class="bi bi-pencil-square"></i>
-                        </button>` : ''}
-                        <button class="btn btn-sm btn-outline-info" onclick="previewModule(${index})">
+                        <button class="btn btn-sm btn-outline-info" onclick="previewModule(${index})" title="Preview Module">
                             <i class="bi bi-eye"></i>
                         </button>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteModule(${index})">
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteModule(${index})" title="Delete Module">
                             <i class="bi bi-trash"></i>
                         </button>
                     </div>
@@ -149,27 +204,13 @@ function editModule(moduleId) {
     modal.show();
 }
 
-function editContent(moduleId) {
-    if (moduleId < 0 || moduleId >= currentModules.length) return;
-    
-    const module = currentModules[moduleId];
-    
-    // Check if module has content to edit
-    if (!module.content_file) {
-        showAlert('This module does not have content to edit.', 'warning');
-        return;
-    }
-    
-    // Open content editor in new tab/window
-    window.open(`/admin/edit_content/${moduleId}`, '_blank');
-}
 
 function clearModuleForm() {
     document.getElementById('moduleTitle').value = '';
     document.getElementById('moduleDescription').value = '';
     document.getElementById('moduleVideoUrl').value = '';
     document.getElementById('moduleDuration').value = '';
-    document.getElementById('moduleContent').value = '';
+    setTinyMCEContent('');
     document.getElementById('resourcesList').innerHTML = '';
     document.getElementById('quizQuestions').innerHTML = '';
 }
@@ -185,11 +226,11 @@ function populateModuleForm(module) {
         fetch(`/data/modules/${module.content_file}`)
             .then(response => response.text())
             .then(content => {
-                document.getElementById('moduleContent').value = content;
+                setTinyMCEContent(content);
             })
             .catch(error => console.error('Error loading content:', error));
     } else {
-        document.getElementById('moduleContent').value = '';
+        setTinyMCEContent('');
     }
     
     // Populate resources
@@ -341,7 +382,7 @@ async function saveModule() {
         description: document.getElementById('moduleDescription').value,
         video_url: document.getElementById('moduleVideoUrl').value,
         duration: parseInt(document.getElementById('moduleDuration').value) || null,
-        content: document.getElementById('moduleContent').value
+        content: getTinyMCEContent()
     };
     
     // Validate required fields
@@ -928,7 +969,7 @@ function autoSave() {
             description: document.getElementById('moduleDescription')?.value || '',
             video_url: document.getElementById('moduleVideoUrl')?.value || '',
             duration: document.getElementById('moduleDuration')?.value || '',
-            content: document.getElementById('moduleContent')?.value || ''
+            content: getTinyMCEContent() || ''
         };
         localStorage.setItem('admin_autosave_module', JSON.stringify(moduleData));
     } else if (currentTab === '#config') {
