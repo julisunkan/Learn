@@ -43,5 +43,14 @@
         "notes": "",
         "bookmarked": false,
         "last_updated": "2025-09-14T16:06:06.985898"
+    },
+    "295726eb-8a1d-4d63-a99e-83fcb7e4b550_0": {
+        "user_fingerprint": "295726eb-8a1d-4d63-a99e-83fcb7e4b550",
+        "module_id": 0,
+        "completed": true,
+        "quiz_score": null,
+        "notes": "Test note",
+        "bookmarked": false,
+        "last_updated": "2025-09-14T16:30:20.160793"
     }
 }
