@@ -445,8 +445,31 @@ async function deleteModule(moduleId) {
     });
 }
 
-function previewModule(moduleId = -1) {
+async function previewModule(moduleId = -1) {
     const module = moduleId === -1 ? getModuleFromForm() : currentModules[moduleId];
+    
+    // Get content - either from form or from file
+    let content = 'No content';
+    try {
+        if (moduleId === -1) {
+            // Content from form
+            content = module.content || 'No content';
+        } else if (module.content_file) {
+            // Load content from file for imported content
+            const response = await fetch(`/data/modules/${module.content_file}`);
+            if (response.ok) {
+                content = await response.text();
+            } else {
+                content = `Error loading content from ${module.content_file}`;
+            }
+        } else {
+            // Direct content
+            content = module.content || 'No content';
+        }
+    } catch (error) {
+        console.error('Error loading content for preview:', error);
+        content = `Error loading content: ${error.message}`;
+    }
     
     // Open preview in new window
     const previewWindow = window.open('', '_blank', 'width=800,height=600');
@@ -455,22 +478,36 @@ function previewModule(moduleId = -1) {
             <head>
                 <title>Module Preview: ${module.title}</title>
                 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+                <style>
+                    img { max-width: 100%; height: auto; }
+                    .content { margin: 20px 0; }
+                </style>
             </head>
             <body class="p-4">
                 <h1>${module.title}</h1>
                 <p class="text-muted">${module.description || 'No description'}</p>
                 ${module.video_url ? `<video src="${module.video_url}" controls class="w-100 mb-3"></video>` : ''}
-                <div class="content">${module.content || 'No content'}</div>
+                <div class="content">${content}</div>
                 ${module.quiz && module.quiz.questions ? `
-                    <h3>Quiz Questions</h3>
+                    <h3 class="mt-4">Quiz Questions</h3>
                     ${module.quiz.questions.map((q, i) => `
-                        <div class="mb-3">
+                        <div class="mb-3 p-3 border rounded">
                             <h6>${i + 1}. ${q.question}</h6>
-                            <ul>
-                                ${q.options.map((opt, oi) => `
-                                    <li ${oi === q.correct_answer ? 'style="color: green; font-weight: bold;"' : ''}>${opt}</li>
-                                `).join('')}
-                            </ul>
+                            ${q.type === 'multiple_choice' ? `
+                                <ul class="list-unstyled ms-3">
+                                    ${q.options.map((opt, oi) => `
+                                        <li class="mb-1 ${oi === q.answer_index ? 'text-success fw-bold' : ''}">
+                                            ${String.fromCharCode(65 + oi)}. ${opt}
+                                        </li>
+                                    `).join('')}
+                                </ul>
+                            ` : q.type === 'true_false' ? `
+                                <p class="ms-3 mb-1">
+                                    <span class="${q.answer ? 'text-success fw-bold' : ''}">True</span> / 
+                                    <span class="${!q.answer ? 'text-success fw-bold' : ''}">False</span>
+                                </p>
+                            ` : ''}
+                            ${q.explanation ? `<small class="text-muted"><strong>Explanation:</strong> ${q.explanation}</small>` : ''}
                         </div>
                     `).join('')}
                 ` : ''}
