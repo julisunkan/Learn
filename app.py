@@ -239,10 +239,13 @@ def load_config():
             "enable_passcode": False
         }
     
-    # Override admin passcode with environment variable if available
+    # Override admin passcode with environment variable if available, fallback to hardcoded
     env_passcode = os.environ.get('ADMIN_PASSCODE')
     if env_passcode:
         config['admin_passcode'] = env_passcode
+    else:
+        # WARNING: Hardcoded passcode is a security risk - visible in source code
+        config['admin_passcode'] = 'admin123'
     
     return config
 
