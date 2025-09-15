@@ -27,8 +27,7 @@ function initializeAdminDashboard() {
         });
     }
     
-    // Initialize TinyMCE for content editing
-    initializeTinyMCE();
+    // CKEditor initialization is handled in content_editor.html template
     
     // Initialize config form
     const configForm = document.getElementById('configForm');
@@ -73,18 +72,21 @@ function initializeAdminDashboard() {
     initializePwaIconManagement();
 }
 
-// TinyMCE Functions
-function initializeTinyMCE() {
-    // Simple textarea - no initialization needed
-    // Function kept for compatibility
+// Content Editor Functions (handled by CKEditor in content_editor.html)
+function initializeContentEditor() {
+    // CKEditor 5 initialization is handled in the content_editor.html template
+    // This function is kept for compatibility
 }
 
-function getTinyMCEContent() {
-    return document.getElementById('moduleContent').value;
+function getContentEditorData() {
+    // Content editing is now handled by CKEditor 5 in the content_editor.html template
+    // This function is kept for compatibility with existing code
+    return '';
 }
 
-function setTinyMCEContent(content) {
-    document.getElementById('moduleContent').value = content || '';
+function setContentEditorData(content) {
+    // Content editing is now handled by CKEditor 5 in the content_editor.html template
+    // This function is kept for compatibility with existing code
 }
 
 // Module Management Functions
@@ -171,7 +173,7 @@ function clearModuleForm() {
     document.getElementById('moduleDescription').value = '';
     document.getElementById('moduleVideoUrl').value = '';
     document.getElementById('moduleDuration').value = '';
-    setTinyMCEContent('');
+    setContentEditorData('');
     document.getElementById('resourcesList').innerHTML = '';
     document.getElementById('quizQuestions').innerHTML = '';
 }
@@ -187,11 +189,11 @@ async function populateModuleForm(module) {
         fetch(`/data/modules/${module.content_file}`)
             .then(response => response.text())
             .then(content => {
-                setTinyMCEContent(content);
+                setContentEditorData(content);
             })
             .catch(error => console.error('Error loading content:', error));
     } else {
-        setTinyMCEContent('');
+        setContentEditorData('');
     }
     
     // Populate resources
@@ -435,7 +437,7 @@ async function saveModule() {
         description: document.getElementById('moduleDescription').value,
         video_url: document.getElementById('moduleVideoUrl').value,
         duration: parseInt(document.getElementById('moduleDuration').value) || null,
-        content: getTinyMCEContent()
+        content: getContentEditorData()
     };
     
     // Validate required fields
@@ -1042,7 +1044,7 @@ function autoSave() {
             description: document.getElementById('moduleDescription')?.value || '',
             video_url: document.getElementById('moduleVideoUrl')?.value || '',
             duration: document.getElementById('moduleDuration')?.value || '',
-            content: getTinyMCEContent() || ''
+            content: getContentEditorData() || ''
         };
         localStorage.setItem('admin_autosave_module', JSON.stringify(moduleData));
     } else if (currentTab === '#config') {
