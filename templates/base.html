@@ -78,6 +78,9 @@
             </a>
             
             <div class="navbar-nav ms-auto">
+                <button class="btn btn-outline-light btn-sm me-2" onclick="clearAppCache().then(() => showToast('Cache cleared successfully!')).catch(() => showToast('Error clearing cache', 'error'))" title="Clear Cache">
+                    <i class="bi bi-arrow-clockwise"></i>
+                </button>
                 <!-- Navigation items can be added here -->
             </div>
         </div>

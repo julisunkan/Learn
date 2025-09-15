@@ -53,6 +53,11 @@
                 <i class="bi bi-phone"></i> PWA Settings
             </button>
         </li>
+        <li class="nav-item">
+            <button class="nav-link" id="cache-tab" data-bs-toggle="tab" data-bs-target="#cache" type="button">
+                <i class="bi bi-arrow-clockwise"></i> Cache
+            </button>
+        </li>
     </ul>
 
     <!-- Tab Content -->
@@ -458,6 +463,90 @@
                                 • Offline access to content<br>
                                 • App-like experience<br>
                                 • Custom splash screen
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cache Management Tab -->
+        <div class="tab-pane fade" id="cache" role="tabpanel">
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5><i class="bi bi-arrow-clockwise"></i> Cache Management</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="text-muted mb-4">Manage application cache and storage to ensure users see the latest content and resolve potential caching issues.</p>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="card border-warning">
+                                        <div class="card-body text-center">
+                                            <i class="bi bi-trash text-warning" style="font-size: 2rem;"></i>
+                                            <h6 class="mt-2">Clear All Cache</h6>
+                                            <p class="small text-muted">Clears all cached content including service worker cache, browser cache, and local storage.</p>
+                                            <button class="btn btn-warning" id="clearCacheBtn" onclick="clearAllCache()">
+                                                <i class="bi bi-trash"></i> Clear All Cache
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="card border-info">
+                                        <div class="card-body text-center">
+                                            <i class="bi bi-arrow-clockwise text-info" style="font-size: 2rem;"></i>
+                                            <h6 class="mt-2">Hard Refresh</h6>
+                                            <p class="small text-muted">Performs a complete refresh by clearing cache and reloading the application from scratch.</p>
+                                            <button class="btn btn-info" onclick="forceRefresh()">
+                                                <i class="bi bi-arrow-clockwise"></i> Force Refresh
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-info mt-4">
+                                <i class="bi bi-info-circle"></i>
+                                <strong>When to clear cache:</strong>
+                                <ul class="mb-0 mt-2">
+                                    <li>After updating PWA icons or manifest</li>
+                                    <li>When users report seeing old content</li>
+                                    <li>After making significant style or layout changes</li>
+                                    <li>When troubleshooting loading issues</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6><i class="bi bi-info-circle"></i> Cache Information</h6>
+                        </div>
+                        <div class="card-body">
+                            <small class="text-muted">
+                                <strong>What gets cached:</strong><br>
+                                • Static files (CSS, JS, images)<br>
+                                • API responses<br>
+                                • HTML pages<br>
+                                • PWA resources<br>
+                                • User preferences<br><br>
+                                
+                                <strong>Cache Types:</strong><br>
+                                • <strong>Service Worker Cache:</strong> Enables offline functionality<br>
+                                • <strong>Browser Cache:</strong> Speeds up page loading<br>
+                                • <strong>Local Storage:</strong> User data and preferences<br><br>
+                                
+                                <strong>Cache Versions:</strong><br>
+                                • Static Cache: v4<br>
+                                • Dynamic Cache: v4<br>
+                                • API Cache: v4<br><br>
+                                
+                                <strong>Auto-clearing:</strong><br>
+                                Old cache versions are automatically cleared when the service worker updates.
                             </small>
                         </div>
                     </div>

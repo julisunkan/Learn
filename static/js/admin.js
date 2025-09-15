@@ -1491,6 +1491,62 @@ async function cropAllImages() {
     }
 }
 
+// Cache Management Functions
+async function clearAllCache() {
+    const button = document.getElementById('clearCacheBtn');
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Clearing...';
+    }
+    
+    try {
+        // Use the main.js clearAppCache function
+        if (typeof clearAppCache === 'function') {
+            await clearAppCache();
+            showAlert('All caches cleared successfully! The page will reload to apply changes.', 'success');
+            
+            // Reload after a short delay to show the success message
+            setTimeout(() => {
+                window.location.reload(true);
+            }, 2000);
+        } else {
+            // Fallback cache clearing
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                await Promise.all(cacheNames.map(name => caches.delete(name)));
+            }
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            showAlert('Caches cleared successfully! Please refresh the page.', 'success');
+        }
+    } catch (error) {
+        console.error('Error clearing cache:', error);
+        showAlert('Error clearing cache: ' + error.message, 'danger');
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-trash"></i> Clear All Cache';
+        }
+    }
+}
+
+async function forceRefresh() {
+    try {
+        showAlert('Performing hard refresh...', 'info');
+        
+        if (typeof hardRefresh === 'function') {
+            await hardRefresh();
+        } else {
+            // Fallback
+            window.location.reload(true);
+        }
+    } catch (error) {
+        console.error('Error during force refresh:', error);
+        window.location.reload();
+    }
+}
+
 // CSRF token management
 let csrfToken = null;
 

@@ -274,4 +274,48 @@ self.addEventListener('push', function(event) {
   // Future: handle push notifications
 });
 
+// Handle cache clearing messages from the main thread
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'CLEAR_CACHE') {
+    console.log('Service Worker: Clearing all caches...');
+    event.waitUntil(
+      clearAllCaches().then(() => {
+        // Notify the main thread that cache clearing is complete
+        event.ports[0].postMessage({
+          type: 'CACHE_CLEARED',
+          success: true
+        });
+      }).catch(error => {
+        console.error('Service Worker: Error clearing caches:', error);
+        event.ports[0].postMessage({
+          type: 'CACHE_CLEARED',
+          success: false,
+          error: error.message
+        });
+      })
+    );
+  }
+});
+
+// Function to clear all caches
+async function clearAllCaches() {
+  try {
+    const cacheNames = await caches.keys();
+    console.log('Service Worker: Found caches to clear:', cacheNames);
+    
+    const deletePromises = cacheNames.map(cacheName => {
+      console.log('Service Worker: Deleting cache:', cacheName);
+      return caches.delete(cacheName);
+    });
+    
+    await Promise.all(deletePromises);
+    console.log('Service Worker: All caches cleared successfully');
+    
+    return true;
+  } catch (error) {
+    console.error('Service Worker: Error clearing caches:', error);
+    throw error;
+  }
+}
+
 console.log('Service Worker: Script loaded successfully');
