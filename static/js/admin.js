@@ -2,6 +2,8 @@
 
 let currentModules = [];
 let currentEditingModule = -1;
+// CKEditor instances for quiz questions
+let quizEditors = new Map();
 let autoSaveInterval;
 
 // Admin panel is now directly accessible - no login needed
@@ -150,14 +152,14 @@ function showAddModuleModal() {
     modal.show();
 }
 
-function editModule(moduleId) {
+async function editModule(moduleId) {
     if (moduleId < 0 || moduleId >= currentModules.length) return;
     
     currentEditingModule = moduleId;
     const module = currentModules[moduleId];
     
     document.getElementById('moduleModalTitle').textContent = 'Edit Module';
-    populateModuleForm(module);
+    await populateModuleForm(module);
     
     const modal = new bootstrap.Modal(document.getElementById('moduleModal'));
     modal.show();
@@ -174,7 +176,7 @@ function clearModuleForm() {
     document.getElementById('quizQuestions').innerHTML = '';
 }
 
-function populateModuleForm(module) {
+async function populateModuleForm(module) {
     document.getElementById('moduleTitle').value = module.title || '';
     document.getElementById('moduleDescription').value = module.description || '';
     document.getElementById('moduleVideoUrl').value = module.video_url || '';
@@ -196,7 +198,7 @@ function populateModuleForm(module) {
     renderResourcesList(module.resources || []);
     
     // Populate quiz questions
-    renderQuizQuestions(module.quiz?.questions || []);
+    await renderQuizQuestions(module.quiz?.questions || []);
 }
 
 function renderResourcesList(resources) {
@@ -212,8 +214,12 @@ function renderResourcesList(resources) {
     `).join('');
 }
 
-function renderQuizQuestions(questions) {
+async function renderQuizQuestions(questions) {
     const quizQuestions = document.getElementById('quizQuestions');
+    
+    // Destroy existing editors first
+    destroyQuizEditors();
+    
     quizQuestions.innerHTML = questions.map((question, qIndex) => `
         <div class="card mb-3 quiz-question" data-question-id="${qIndex}">
             <div class="card-header">
@@ -226,7 +232,10 @@ function renderQuizQuestions(questions) {
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <input type="text" class="form-control" placeholder="Enter question" value="${question.question || ''}" onchange="updateQuizQuestion(${qIndex}, 'question', this.value)">
+                    <label class="form-label">Question Text:</label>
+                    <div id="quizEditor_${qIndex}" class="quiz-question-editor" style="min-height: 150px; border: 1px solid #ced4da; border-radius: 0.375rem;">
+                        ${question.question || ''}
+                    </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small">Options:</label>
@@ -245,9 +254,77 @@ function renderQuizQuestions(questions) {
                         <i class="bi bi-plus"></i> Add Option
                     </button>
                 </div>
+                ${question.explanation ? `
+                    <div class="mb-3">
+                        <label class="form-label small">Explanation:</label>
+                        <textarea class="form-control" rows="2" placeholder="Optional explanation for this question" onchange="updateQuizQuestion(${qIndex}, 'explanation', this.value)">${question.explanation || ''}</textarea>
+                    </div>
+                ` : `
+                    <div class="mb-3">
+                        <label class="form-label small">Explanation:</label>
+                        <textarea class="form-control" rows="2" placeholder="Optional explanation for this question" onchange="updateQuizQuestion(${qIndex}, 'explanation', this.value)"></textarea>
+                    </div>
+                `}
             </div>
         </div>
     `).join('');
+    
+    // Initialize CKEditor instances for each question
+    await initializeQuizEditors(questions);
+}
+
+// Initialize CKEditor instances for quiz questions
+async function initializeQuizEditors(questions) {
+    for (let qIndex = 0; qIndex < questions.length; qIndex++) {
+        const editorElement = document.getElementById(`quizEditor_${qIndex}`);
+        if (editorElement) {
+            try {
+                const editor = await CKEDITOR.InlineEditor.create(editorElement, {
+                    toolbar: {
+                        items: [
+                            'heading', '|',
+                            'bold', 'italic', 'underline', '|',
+                            'bulletedList', 'numberedList', '|',
+                            'link', 'insertTable', '|',
+                            'undo', 'redo'
+                        ]
+                    },
+                    placeholder: 'Enter your quiz question here...',
+                    removePlugins: [
+                        'CKBox', 'CKFinder', 'EasyImage', 'RealTimeCollaborativeComments',
+                        'RealTimeCollaborativeTrackChanges', 'RealTimeCollaborativeRevisionHistory',
+                        'PresenceList', 'Comments', 'TrackChanges', 'TrackChangesData',
+                        'RevisionHistory', 'Pagination', 'WProofreader', 'MathType'
+                    ]
+                });
+                
+                // Store the editor instance
+                quizEditors.set(`quizEditor_${qIndex}`, editor);
+                
+                // Add change listener to update quiz data
+                editor.model.document.on('change:data', () => {
+                    updateQuizQuestion(qIndex, 'question', editor.getData());
+                });
+                
+                console.log(`Quiz editor ${qIndex} initialized successfully`);
+            } catch (error) {
+                console.error(`Failed to initialize quiz editor ${qIndex}:`, error);
+            }
+        }
+    }
+}
+
+// Destroy all quiz editors
+function destroyQuizEditors() {
+    quizEditors.forEach(async (editor, key) => {
+        try {
+            await editor.destroy();
+            console.log(`Destroyed editor: ${key}`);
+        } catch (error) {
+            console.error(`Error destroying editor ${key}:`, error);
+        }
+    });
+    quizEditors.clear();
 }
 
 function addResource() {
@@ -273,7 +350,7 @@ function removeResource(index) {
     renderResourcesList(resources);
 }
 
-function addQuizQuestion() {
+async function addQuizQuestion() {
     const questionsContainer = document.getElementById('quizQuestions');
     const currentQuestions = getCurrentQuizQuestions();
     
@@ -283,22 +360,22 @@ function addQuizQuestion() {
         correct_answer: 0
     });
     
-    renderQuizQuestions(currentQuestions);
+    await renderQuizQuestions(currentQuestions);
 }
 
-function removeQuizQuestion(qIndex) {
+async function removeQuizQuestion(qIndex) {
     const currentQuestions = getCurrentQuizQuestions();
     currentQuestions.splice(qIndex, 1);
-    renderQuizQuestions(currentQuestions);
+    await renderQuizQuestions(currentQuestions);
 }
 
-function addQuizOption(qIndex) {
+async function addQuizOption(qIndex) {
     const currentQuestions = getCurrentQuizQuestions();
     currentQuestions[qIndex].options.push('');
-    renderQuizQuestions(currentQuestions);
+    await renderQuizQuestions(currentQuestions);
 }
 
-function removeQuizOption(qIndex, oIndex) {
+async function removeQuizOption(qIndex, oIndex) {
     const currentQuestions = getCurrentQuizQuestions();
     if (currentQuestions[qIndex].options.length > 2) { // Keep at least 2 options
         currentQuestions[qIndex].options.splice(oIndex, 1);
@@ -306,7 +383,7 @@ function removeQuizOption(qIndex, oIndex) {
         if (currentQuestions[qIndex].correct_answer >= oIndex) {
             currentQuestions[qIndex].correct_answer = Math.max(0, currentQuestions[qIndex].correct_answer - 1);
         }
-        renderQuizQuestions(currentQuestions);
+        await renderQuizQuestions(currentQuestions);
     }
 }
 
@@ -314,12 +391,29 @@ function getCurrentQuizQuestions() {
     const questionCards = document.querySelectorAll('.quiz-question');
     return Array.from(questionCards).map(card => {
         const qIndex = card.dataset.questionId;
-        const question = card.querySelector('input[type="text"]').value;
+        
+        // Get question text from CKEditor instance
+        const editorKey = `quizEditor_${qIndex}`;
+        const editor = quizEditors.get(editorKey);
+        const question = editor ? editor.getData() : '';
+        
+        // Get options from input fields
         const options = Array.from(card.querySelectorAll('.input-group input[type="text"]')).map(input => input.value);
+        
+        // Get correct answer
         const correctRadio = card.querySelector('input[type="radio"]:checked');
         const correct_answer = correctRadio ? parseInt(correctRadio.value) : 0;
         
-        return { question, options, correct_answer };
+        // Get explanation
+        const explanationTextarea = card.querySelector('textarea');
+        const explanation = explanationTextarea ? explanationTextarea.value : '';
+        
+        return { 
+            question, 
+            options, 
+            correct_answer, 
+            explanation: explanation || undefined
+        };
     });
 }
 

@@ -534,6 +534,8 @@
 {% endblock %}
 
 {% block scripts %}
+<!-- CKEditor 5 for Quiz Editing -->
+<script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/super-build/ckeditor.js"></script>
 <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
