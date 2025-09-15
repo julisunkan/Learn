@@ -3,8 +3,8 @@
 {% block title %}Edit Content - {{ module.title }} - {{ config.site_title }}{% endblock %}
 
 {% block head %}
-<!-- TinyMCE Editor -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<!-- CKEditor 5 -->
+<script src="https://cdn.ckeditor.com/ckeditor5/41.4.2/super-build/ckeditor.js"></script>
 <style>
     .editor-toolbar {
         background: #f8f9fa;
@@ -111,7 +111,7 @@
                 </div>
                 <div class="card-body p-0">
                     <div class="editor-section">
-                        <textarea id="contentEditor">{{ content|e }}</textarea>
+                        <div id="contentEditor">{{ content|safe }}</div>
                     </div>
                 </div>
             </div>
@@ -182,74 +182,209 @@ let currentImagePath = '';
 let originalImageWidth = 0;
 let originalImageHeight = 0;
 
-// Initialize TinyMCE Editor
-tinymce.init({
-    selector: '#contentEditor',
-    height: 450,
-    plugins: [
-        'advlist', 'autolink', 'lists', 'link', 'image', 'charmap', 'preview',
-        'anchor', 'searchreplace', 'visualblocks', 'code', 'fullscreen',
-        'insertdatetime', 'media', 'table', 'help', 'wordcount'
-    ],
-    toolbar: 'undo redo | blocks | bold italic forecolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | image link | code preview fullscreen | help',
-    content_style: 'body { font-family: Arial, sans-serif; font-size: 14px; }',
-    images_upload_handler: async function (blobInfo, success, failure) {
-        try {
-            // Create form data for image upload
-            const formData = new FormData();
-            formData.append('file', blobInfo.blob(), blobInfo.filename());
-            
-            // Get CSRF token
-            const token = await getCsrfToken();
-            if (!token) {
-                failure('Security token not available. Please refresh the page.');
-                return;
-            }
-            
-            // Upload image to resources folder
-            const response = await fetch('/admin/upload_resource', {
-                method: 'POST',
-                headers: {
-                    'X-CSRF-Token': token
-                },
-                body: formData
-            });
-            
-            const result = await response.json();
-            
-            if (result.success) {
-                success(result.url);
-            } else {
-                failure('Upload failed: ' + (result.error || 'Unknown error'));
-            }
-        } catch (error) {
-            console.error('Image upload error:', error);
-            failure('Upload failed: ' + error.message);
+// Initialize CKEditor 5
+let editorInstance;
+
+CKEDITOR.ClassicEditor.create(document.querySelector('#contentEditor'), {
+    toolbar: {
+        items: [
+            'exportPDF','exportWord', '|',
+            'findAndReplace', 'selectAll', '|',
+            'heading', '|',
+            'bold', 'italic', 'strikethrough', 'underline', 'code', 'subscript', 'superscript', 'removeFormat', '|',
+            'bulletedList', 'numberedList', 'todoList', '|',
+            'outdent', 'indent', '|',
+            'undo', 'redo',
+            '-',
+            'fontSize', 'fontFamily', 'fontColor', 'fontBackgroundColor', 'highlight', '|',
+            'alignment', '|',
+            'link', 'insertImage', 'blockQuote', 'insertTable', 'mediaEmbed', 'codeBlock', 'htmlEmbed', '|',
+            'specialCharacters', 'horizontalLine', 'pageBreak', '|',
+            'textPartLanguage', '|',
+            'sourceEditing'
+        ],
+        shouldNotGroupWhenFull: true
+    },
+    list: {
+        properties: {
+            styles: true,
+            startIndex: true,
+            reversed: true
         }
     },
-    setup: function (editor) {
-        editor.on('init', function () {
-            console.log('TinyMCE editor initialized');
-        });
-        
-        // Add context menu for images
-        editor.on('contextmenu', function (e) {
-            const target = e.target;
-            if (target.tagName === 'IMG') {
-                e.preventDefault();
-                showImageResizeModal(target.src);
+    heading: {
+        options: [
+            { model: 'paragraph', title: 'Paragraph', class: 'ck-heading_paragraph' },
+            { model: 'heading1', view: 'h1', title: 'Heading 1', class: 'ck-heading_heading1' },
+            { model: 'heading2', view: 'h2', title: 'Heading 2', class: 'ck-heading_heading2' },
+            { model: 'heading3', view: 'h3', title: 'Heading 3', class: 'ck-heading_heading3' },
+            { model: 'heading4', view: 'h4', title: 'Heading 4', class: 'ck-heading_heading4' },
+            { model: 'heading5', view: 'h5', title: 'Heading 5', class: 'ck-heading_heading5' },
+            { model: 'heading6', view: 'h6', title: 'Heading 6', class: 'ck-heading_heading6' }
+        ]
+    },
+    placeholder: 'Start writing your content here...',
+    fontFamily: {
+        options: [
+            'default',
+            'Arial, Helvetica, sans-serif',
+            'Courier New, Courier, monospace',
+            'Georgia, serif',
+            'Lucida Sans Unicode, Lucida Grande, sans-serif',
+            'Tahoma, Geneva, sans-serif',
+            'Times New Roman, Times, serif',
+            'Trebuchet MS, Helvetica, sans-serif',
+            'Verdana, Geneva, sans-serif'
+        ],
+        supportAllValues: true
+    },
+    fontSize: {
+        options: [ 10, 12, 14, 'default', 18, 20, 22 ],
+        supportAllValues: true
+    },
+    htmlSupport: {
+        allow: [
+            {
+                name: /.*/,
+                attributes: true,
+                classes: true,
+                styles: true
             }
-        });
-        
-        // Double-click on images to resize
-        editor.on('dblclick', function (e) {
-            const target = e.target;
-            if (target.tagName === 'IMG') {
-                showImageResizeModal(target.src);
+        ]
+    },
+    htmlEmbed: {
+        showPreviews: true
+    },
+    link: {
+        decorators: {
+            addTargetToExternalLinks: true,
+            defaultProtocol: 'https://',
+            toggleDownloadable: {
+                mode: 'manual',
+                label: 'Downloadable',
+                attributes: {
+                    download: 'file'
+                }
             }
+        }
+    },
+    mention: {
+        feeds: [
+            {
+                marker: '@',
+                feed: [
+                    '@apple', '@bears', '@brownie', '@cake', '@cake', '@candy', '@canes', '@chocolate', '@cookie', '@cotton', '@cream',
+                    '@cupcake', '@danish', '@donut', '@dragée', '@fruitcake', '@gingerbread', '@gummi', '@ice', '@jelly-o',
+                    '@liquorice', '@macaroon', '@marzipan', '@oat', '@pie', '@plum', '@pudding', '@sesame', '@snaps', '@soufflé',
+                    '@sugar', '@sweet', '@topping', '@wafer'
+                ],
+                minimumCharacters: 1
+            }
+        ]
+    },
+    removePlugins: [
+        'CKBox',
+        'CKFinder',
+        'EasyImage',
+        'RealTimeCollaborativeComments',
+        'RealTimeCollaborativeTrackChanges',
+        'RealTimeCollaborativeRevisionHistory',
+        'PresenceList',
+        'Comments',
+        'TrackChanges',
+        'TrackChangesData',
+        'RevisionHistory',
+        'Pagination',
+        'WProofreader',
+        'MathType',
+        'SlashCommand',
+        'Template',
+        'DocumentOutline',
+        'FormatPainter',
+        'TableOfContents'
+    ],
+    simpleUpload: {
+        uploadUrl: '/admin/upload_resource',
+        withCredentials: true,
+        headers: {
+            'X-Requested-With': 'XMLHttpRequest'
+        }
+    }
+}).then(editor => {
+    editorInstance = editor;
+    
+    // Set custom upload adapter for CSRF token support
+    editor.plugins.get('FileRepository').createUploadAdapter = (loader) => {
+        return new CustomUploadAdapter(loader);
+    };
+    
+    console.log('CKEditor 5 initialized successfully');
+    
+    // Add change listener for auto-save
+    editor.model.document.on('change:data', () => {
+        scheduleAutoSave();
+    });
+    
+    // Add double-click handler for images
+    editor.editing.view.document.on('dblclick', (evt, data) => {
+        const viewElement = data.domTarget;
+        if (viewElement.tagName === 'IMG') {
+            evt.stop();
+            showImageResizeModal(viewElement.src);
+        }
+    });
+    
+}).catch(error => {
+    console.error('CKEditor 5 initialization failed:', error);
+});
+
+// Custom Upload Adapter for CSRF token support
+class CustomUploadAdapter {
+    constructor(loader) {
+        this.loader = loader;
+    }
+
+    upload() {
+        return this.loader.file.then(file => {
+            return new Promise(async (resolve, reject) => {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', file);
+                    
+                    const token = await getCsrfToken();
+                    if (!token) {
+                        reject('Security token not available. Please refresh the page.');
+                        return;
+                    }
+                    
+                    const response = await fetch('/admin/upload_resource', {
+                        method: 'POST',
+                        headers: {
+                            'X-CSRF-Token': token
+                        },
+                        body: formData
+                    });
+                    
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        resolve({
+                            default: result.url
+                        });
+                    } else {
+                        reject(result.error || 'Upload failed');
+                    }
+                } catch (error) {
+                    reject(error.message);
+                }
+            });
         });
     }
-});
+
+    abort() {
+        // Abort upload if needed
+    }
+}
 
 // Mode switching
 function setMode(mode) {
@@ -271,7 +406,9 @@ function setMode(mode) {
 
 // Refresh preview
 function refreshPreview() {
-    const content = tinymce.get('contentEditor').getContent();
+    if (!editorInstance) return;
+    
+    const content = editorInstance.getData();
     document.getElementById('previewContainer').innerHTML = content;
     
     // Add click handlers to images in preview for resizing
@@ -286,7 +423,12 @@ function refreshPreview() {
 
 // Save content
 async function saveContent(isAutoSave = false) {
-    const content = tinymce.get('contentEditor').getContent();
+    if (!editorInstance) {
+        if (!isAutoSave) showSaveStatus('Editor not ready', 'warning');
+        return;
+    }
+    
+    const content = editorInstance.getData();
     const title = document.getElementById('moduleTitle').value;
     const description = document.getElementById('moduleDescription').value;
     
@@ -402,10 +544,11 @@ async function applyImageResize() {
         
         if (result.success) {
             // Update the image in the editor
-            const editor = tinymce.get('contentEditor');
-            const content = editor.getContent();
-            const updatedContent = content.replace(currentImagePath, result.new_path);
-            editor.setContent(updatedContent);
+            if (editorInstance) {
+                const content = editorInstance.getData();
+                const updatedContent = content.replace(currentImagePath, result.new_path);
+                editorInstance.setData(updatedContent);
+            }
             
             showSaveStatus(result.message, 'success');
             
@@ -468,7 +611,9 @@ function scheduleAutoSave() {
     }
     
     autoSaveTimeout = setTimeout(() => {
-        const currentContent = tinymce.get('contentEditor').getContent();
+        if (!editorInstance) return;
+        
+        const currentContent = editorInstance.getData();
         // Only auto-save if content has changed
         if (currentContent !== lastSaveContent && currentMode === 'edit') {
             lastSaveContent = currentContent;
@@ -477,15 +622,7 @@ function scheduleAutoSave() {
     }, 30000); // 30 seconds
 }
 
-// Schedule auto-save whenever content changes
-document.addEventListener('DOMContentLoaded', function() {
-    setTimeout(() => {
-        if (tinymce.get('contentEditor')) {
-            tinymce.get('contentEditor').on('input', scheduleAutoSave);
-            tinymce.get('contentEditor').on('change', scheduleAutoSave);
-        }
-    }, 1000);
-});
+// Auto-save is now handled by the CKEditor change listener in the initialization
 
 // Keyboard shortcuts
 document.addEventListener('keydown', function(e) {
