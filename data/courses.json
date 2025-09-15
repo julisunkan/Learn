@@ -16,6 +16,7 @@
                 "20250914_173745_10.png",
                 "20250914_173746_11.png"
             ],
+            "module_id": "1d81031f-44f3-471a-83a7-b8e9e69c485c",
             "quiz": {
                 "questions": [
                     {
@@ -96,8 +97,7 @@
             },
             "source_url": "https://www.hackingarticles.in/a-detailed-guide-on-passthecert/",
             "title": "A Detailed Guide on PassTheCert",
-            "video_url": "",
-            "module_id": "1d81031f-44f3-471a-83a7-b8e9e69c485c"
+            "video_url": ""
         }
     ]
 }
