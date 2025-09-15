@@ -1,6 +1,6 @@
 // Enhanced Service Worker for Tutorial Platform PWA
 // Version-based cache management
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4';
 const STATIC_CACHE = `tutorial-platform-static-${CACHE_VERSION}`;
 const DYNAMIC_CACHE = `tutorial-platform-dynamic-${CACHE_VERSION}`;
 const API_CACHE = `tutorial-platform-api-${CACHE_VERSION}`;
@@ -16,7 +16,7 @@ const STATIC_RESOURCES = [
   '/static/pwa-icons/icon-192x192.png',
   '/static/pwa-icons/icon-512x512.png',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css',
-  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css',
+  'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.13.1/font/bootstrap-icons.min.css',
   'https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js',
   'https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js'
 ];
