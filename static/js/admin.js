@@ -828,6 +828,51 @@ function refreshPwaIcons() {
     showAlert('PWA icons refreshed!', 'info');
 }
 
+async function resizeAllImages() {
+    if (!confirm('This will resize ALL existing images in the resources folder to 500x500 pixels. This action cannot be undone. Continue?')) {
+        return;
+    }
+    
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        showAlert('Security token error. Please refresh the page.', 'danger');
+        return;
+    }
+    
+    const button = document.getElementById('resizeAllImagesBtn');
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Resizing...';
+    }
+    
+    fetch('/admin/resize_all_images', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-Token': token
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('Error resizing images.', 'danger');
+    })
+    .finally(() => {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-arrows-fullscreen"></i> Resize All Images to 500x500';
+        }
+    });
+}
+
 // Configuration Functions
 function loadConfiguration() {
     fetch('/admin/config')
