@@ -828,8 +828,8 @@ function refreshPwaIcons() {
     showAlert('PWA icons refreshed!', 'info');
 }
 
-async function resizeAllImages() {
-    if (!confirm('This will resize ALL existing images in the resources folder to 500x500 pixels. This action cannot be undone. Continue?')) {
+async function cropAllImages() {
+    if (!confirm('This will crop ALL existing images in the resources folder to 800x500 pixels with responsive sizing. This action cannot be undone. Continue?')) {
         return;
     }
     
@@ -840,13 +840,13 @@ async function resizeAllImages() {
         return;
     }
     
-    const button = document.getElementById('resizeAllImagesBtn');
+    const button = document.getElementById('cropAllImagesBtn');
     if (button) {
         button.disabled = true;
-        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Resizing...';
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Cropping...';
     }
     
-    fetch('/admin/resize_all_images', {
+    fetch('/admin/crop_all_images', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -863,12 +863,12 @@ async function resizeAllImages() {
     })
     .catch(error => {
         console.error('Error:', error);
-        showAlert('Error resizing images.', 'danger');
+        showAlert('Error cropping images.', 'danger');
     })
     .finally(() => {
         if (button) {
             button.disabled = false;
-            button.innerHTML = '<i class="bi bi-arrows-fullscreen"></i> Resize All Images to 500x500';
+            button.innerHTML = '<i class="bi bi-crop"></i> Crop All Images to 800x500';
         }
     });
 }

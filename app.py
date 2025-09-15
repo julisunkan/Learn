@@ -549,9 +549,9 @@ def admin_modules():
             with open(content_path, 'w', encoding='utf-8') as f:
                 f.write(module_data['content'])
             
-            # Resize images within the content file if it's an HTML/Markdown file
+            # Crop images within the content file if it's an HTML/Markdown file
             if content_filename.lower().endswith(('.html', '.htm', '.md')):
-                resize_images_in_file(content_path, 500, 500)
+                resize_images_in_file(content_path, 800, 500)
 
             del module_data['content']
         elif 'content' in module_data:
@@ -623,9 +623,9 @@ def admin_modules():
                 with open(content_path, 'w', encoding='utf-8') as f:
                     f.write(module_data['content'])
                 
-                # Resize images within the content file
+                # Crop images within the content file
                 if content_filename.lower().endswith(('.html', '.htm', '.md')):
-                    resize_images_in_file(content_path, 500, 500)
+                    resize_images_in_file(content_path, 800, 500)
 
                 # Set the safe content_file reference
                 module_data['content_file'] = content_filename
@@ -728,9 +728,9 @@ def save_module_content(module_id):
     with open(content_path, 'w', encoding='utf-8') as f:
         f.write(content)
     
-    # Resize images within the content file
+    # Crop images within the content file
     if module['content_file'].lower().endswith(('.html', '.htm', '.md')):
-        resize_images_in_file(content_path, 500, 500)
+        resize_images_in_file(content_path, 800, 500)
 
     # Update module metadata if provided
     if 'title' in data:
@@ -745,11 +745,11 @@ def save_module_content(module_id):
 @app.route('/admin/resize_image', methods=['POST'])
 @require_admin_auth()
 def resize_image():
-    """Resize an image to specified dimensions"""
+    """Crop an image to specified dimensions with responsive sizing"""
     data = request.json or {}
     image_path = data.get('image_path', '')
     width = data.get('width', 800)
-    height = data.get('height', 600)
+    height = data.get('height', 500)
 
     if not image_path:
         return jsonify({"success": False, "error": "Image path is required"}), 400
@@ -790,52 +790,32 @@ def resize_image():
         return jsonify({"success": False, "error": "File is not a valid image"}), 400
 
     try:
-        from PIL import Image
-        import uuid
+        # Use the new crop function
+        cropped_path = crop_single_image(full_path, width, height)
 
-        # Open and validate image
-        with Image.open(full_path) as img:
-            # Convert to RGB if necessary
-            if img.mode in ('RGBA', 'P'):
-                img = img.convert('RGB')
-
-            resized = img.resize((width, height), Image.Resampling.LANCZOS)
-
-            # Generate secure filename with UUID to prevent conflicts and directory traversal
-            original_name = os.path.basename(full_path)
-            name_part, ext = os.path.splitext(original_name)
-            unique_id = str(uuid.uuid4())[:8]
-            new_filename = f"{name_part}_resized_{width}x{height}_{unique_id}{ext}"
-
-            # Ensure new file is saved in resources directory
-            new_path = os.path.join('static', 'resources', new_filename)
-
-            # Save resized image
-            resized.save(new_path, optimize=True, quality=85)
-
-            # Return web-accessible path
-            web_path = f"/static/resources/{new_filename}"
-
+        if cropped_path:
             return jsonify({
                 "success": True, 
-                "new_path": web_path,
-                "message": f"Image resized to {width}x{height}"
+                "new_path": cropped_path,
+                "message": f"Image cropped to {width}x{height} with responsive sizing"
             })
+        else:
+            return jsonify({"success": False, "error": "Error cropping image"}), 500
 
     except Exception as e:
-        logger.error(f"Error resizing image {full_path}: {str(e)}")
+        logger.error(f"Error cropping image {full_path}: {str(e)}")
         return jsonify({"success": False, "error": "Error processing image"}), 500
 
 def resize_images_in_file(file_path, target_width, target_height):
     """
-    Finds all image tags in an HTML or Markdown file and resizes the images
-    to the target dimensions. Updates the image source to point to the resized image.
+    Finds all image tags in an HTML or Markdown file and crops the images
+    to the target dimensions. Updates the image source to point to the cropped image.
     """
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
     except Exception as e:
-        logger.error(f"Could not read file {file_path} for image resizing: {e}")
+        logger.error(f"Could not read file {file_path} for image cropping: {e}")
         return
 
     import re
@@ -860,19 +840,19 @@ def resize_images_in_file(file_path, target_width, target_height):
 
                 # Security check: Ensure the image path is within the resources directory
                 if not full_image_path.startswith(resources_dir + os.sep):
-                    logger.warning(f"Skipping resize for image outside resources directory: {src}")
+                    logger.warning(f"Skipping crop for image outside resources directory: {src}")
                     continue
 
                 if not os.path.exists(full_image_path):
-                    logger.warning(f"Image not found for resizing: {full_image_path}")
+                    logger.warning(f"Image not found for cropping: {full_image_path}")
                     continue
 
-                # Resize the image
-                resized_path = resize_single_image(full_image_path, target_width, target_height)
+                # Crop the image
+                cropped_path = crop_single_image(full_image_path, target_width, target_height)
 
-                if resized_path:
+                if cropped_path:
                     # Update the content with the new path
-                    new_src = resized_path.replace('\\', '/') # Use forward slashes for web paths
+                    new_src = cropped_path.replace('\\', '/') # Use forward slashes for web paths
                     # Replace in both HTML and Markdown formats
                     content = content.replace(f'src="{src}"', f'src="{new_src}"')
                     content = content.replace(f'src="{src.split("/")[-1]}"', f'src="{new_src}"') # Handle relative paths if they appear like that
@@ -886,39 +866,66 @@ def resize_images_in_file(file_path, target_width, target_height):
     try:
         with open(file_path, 'w', encoding='utf-8') as f:
             f.write(content)
-        logger.info(f"Resized images in {file_path} and updated content.")
+        logger.info(f"Cropped images in {file_path} and updated content.")
     except Exception as e:
         logger.error(f"Could not save modified content for {file_path}: {e}")
 
 
-def resize_single_image(image_path, width, height):
+def crop_single_image(image_path, width, height):
     """
-    Resizes a single image to the specified width and height, saves it with a new name,
-    and returns the web-accessible path to the resized image.
+    Crops a single image to the specified width and height using center crop,
+    saves it with a new name, and returns the web-accessible path to the cropped image.
     """
     try:
         with Image.open(image_path) as img:
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
 
-            resized = img.resize((width, height), Image.Resampling.LANCZOS)
+            # Get original dimensions
+            original_width, original_height = img.size
+            
+            # Calculate aspect ratios
+            target_ratio = width / height
+            original_ratio = original_width / original_height
+            
+            # Determine crop dimensions to maintain aspect ratio
+            if original_ratio > target_ratio:
+                # Image is wider than target ratio - crop width
+                crop_height = original_height
+                crop_width = int(crop_height * target_ratio)
+            else:
+                # Image is taller than target ratio - crop height
+                crop_width = original_width
+                crop_height = int(crop_width / target_ratio)
+            
+            # Calculate center crop coordinates
+            left = (original_width - crop_width) // 2
+            top = (original_height - crop_height) // 2
+            right = left + crop_width
+            bottom = top + crop_height
+            
+            # Crop the image from center
+            cropped = img.crop((left, top, right, bottom))
+            
+            # Resize to exact target dimensions
+            final_image = cropped.resize((width, height), Image.Resampling.LANCZOS)
 
             original_name = os.path.basename(image_path)
             name_part, ext = os.path.splitext(original_name)
             unique_id = str(uuid.uuid4())[:8]
-            new_filename = f"{name_part}_resized_{width}x{height}_{unique_id}{ext}"
+            new_filename = f"{name_part}_cropped_{width}x{height}_{unique_id}{ext}"
 
             new_path = os.path.join('static', 'resources', new_filename)
             
             # Ensure the directory exists
             os.makedirs(os.path.dirname(new_path), exist_ok=True)
 
-            resized.save(new_path, optimize=True, quality=85)
+            final_image.save(new_path, optimize=True, quality=85)
             
             return f"/static/resources/{new_filename}"
 
     except Exception as e:
-        logger.error(f"Failed to resize image {image_path}: {e}")
+        logger.error(f"Failed to crop image {image_path}: {e}")
         return None
 
 @app.route('/admin/upload_resource', methods=['POST'])
@@ -945,15 +952,15 @@ def upload_resource():
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(file_path)
 
-        # Resize uploaded image if it's an image file
+        # Crop uploaded image if it's an image file
         if filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-            resized_path = resize_single_image(file_path, 500, 500)
-            if resized_path:
-                # Return the path to the resized image
-                return jsonify({"success": True, "filename": os.path.basename(resized_path), "url": resized_path})
+            cropped_path = crop_single_image(file_path, 800, 500)
+            if cropped_path:
+                # Return the path to the cropped image
+                return jsonify({"success": True, "filename": os.path.basename(cropped_path), "url": cropped_path})
             else:
-                # If resizing failed, return the original path but log the error
-                return jsonify({"success": True, "filename": filename, "url": f"/static/resources/{filename}", "warning": "Image resizing failed."})
+                # If cropping failed, return the original path but log the error
+                return jsonify({"success": True, "filename": filename, "url": f"/static/resources/{filename}", "warning": "Image cropping failed."})
 
         return jsonify({"success": True, "filename": filename, "url": f"/static/resources/{filename}"})
 
@@ -1347,9 +1354,9 @@ def import_course():
                         with zip_file.open(member) as source, open(dest_path, 'wb') as target:
                             target.write(source.read())
                             
-                        # If it's an image in resources, resize it
+                        # If it's an image in resources, crop it
                         if member_name.startswith('static/resources/') and member_name.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-                            resize_images_in_file(dest_path, 500, 500)
+                            resize_images_in_file(dest_path, 800, 500)
 
             return jsonify({"success": True})
         except Exception as e:
@@ -1405,9 +1412,9 @@ def admin_import_url():
         with open(content_path, 'w', encoding='utf-8') as f:
             f.write(scraped_content['html'])
         
-        # Resize images within the content file
+        # Crop images within the content file
         if content_filename.lower().endswith(('.html', '.htm', '.md')):
-            resize_images_in_file(content_path, 500, 500)
+            resize_images_in_file(content_path, 800, 500)
 
         # Create excerpt from text for description
         text = scraped_content.get('text', '')
@@ -1572,12 +1579,12 @@ if __name__ == '__main__':
     # Initialize data directories and resize existing images in resources
     print("Data directories initialized successfully.")
     
-    # Resize all existing images in the /resources folder
+    # Crop all existing images in the /resources folder
     resource_images = glob.glob('static/resources/*.*')
     for img_path in resource_images:
         if img_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-            resize_single_image(img_path, 500, 500)
-            logger.info(f"Resized existing image: {img_path}")
+            crop_single_image(img_path, 800, 500)
+            logger.info(f"Cropped existing image: {img_path}")
 
     # Only enable debug in development
     debug_mode = os.environ.get('FLASK_ENV') == 'development'

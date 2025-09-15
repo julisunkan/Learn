@@ -308,6 +308,56 @@ video {
   height: auto;
 }
 
+/* Responsive image styles for cropped 800x500 images */
+img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--border-radius-sm);
+  box-shadow: var(--shadow-light);
+  transition: var(--transition-base);
+}
+
+img:hover {
+  box-shadow: var(--shadow-medium);
+  transform: scale(1.02);
+}
+
+/* Image container for better responsive behavior */
+.image-container {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  margin: var(--spacing-base) auto;
+  overflow: hidden;
+  border-radius: var(--border-radius-base);
+}
+
+.image-container img {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
+  aspect-ratio: 8/5; /* Maintain 800:500 aspect ratio */
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .image-container {
+    margin: var(--spacing-sm) auto;
+  }
+  
+  .image-container img {
+    aspect-ratio: 16/10; /* Slightly different ratio for mobile */
+  }
+}
+
+/* Small mobile devices */
+@media (max-width: 480px) {
+  .image-container img {
+    aspect-ratio: 4/3; /* More square ratio for very small screens */
+  }
+}
+
 /* Rating stars */
 .rating {
   display: flex;
