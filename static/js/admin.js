@@ -6,7 +6,7 @@ let currentEditingModule = -1;
 let quizEditors = new Map();
 let autoSaveInterval;
 
-// Admin panel is now directly accessible - no login needed
+// Admin panel with secure authentication and CKEditor 5 integration
 
 // Admin Dashboard Functions
 function initializeAdminDashboard() {
