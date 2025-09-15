@@ -186,12 +186,14 @@ async function populateModuleForm(module) {
     
     // Load content from file if exists
     if (module.content_file) {
-        fetch(`/data/modules/${module.content_file}`)
-            .then(response => response.text())
-            .then(content => {
-                setContentEditorData(content);
-            })
-            .catch(error => console.error('Error loading content:', error));
+        try {
+            const response = await fetch(`/data/modules/${module.content_file}`);
+            const content = await response.text();
+            setContentEditorData(content);
+        } catch (error) {
+            console.error('Error loading content:', error);
+            setContentEditorData('');
+        }
     } else {
         setContentEditorData('');
     }
@@ -199,8 +201,18 @@ async function populateModuleForm(module) {
     // Populate resources
     renderResourcesList(module.resources || []);
     
-    // Populate quiz questions
-    await renderQuizQuestions(module.quiz?.questions || []);
+    // Populate quiz questions with proper structure
+    const quizQuestions = module.quiz?.questions || [];
+    
+    // Ensure each question has the required structure
+    const normalizedQuestions = quizQuestions.map(q => ({
+        question: q.question || '',
+        options: q.options || ['Option 1', 'Option 2'],
+        correct_answer: q.correct_answer !== undefined ? q.correct_answer : (q.answer_index || 0),
+        explanation: q.explanation || ''
+    }));
+    
+    await renderQuizQuestions(normalizedQuestions);
 }
 
 function renderResourcesList(resources) {
@@ -218,9 +230,18 @@ function renderResourcesList(resources) {
 
 async function renderQuizQuestions(questions) {
     const quizQuestions = document.getElementById('quizQuestions');
+    if (!quizQuestions) {
+        console.error('Quiz questions container not found');
+        return;
+    }
     
     // Destroy existing editors first
     destroyQuizEditors();
+    
+    if (!questions || questions.length === 0) {
+        quizQuestions.innerHTML = '<p class="text-muted text-center py-4">No quiz questions yet. Click "Add Question" to get started.</p>';
+        return;
+    }
     
     quizQuestions.innerHTML = questions.map((question, qIndex) => `
         <div class="card mb-3 quiz-question" data-question-id="${qIndex}">
@@ -235,59 +256,68 @@ async function renderQuizQuestions(questions) {
             <div class="card-body">
                 <div class="mb-3">
                     <label class="form-label">Question Text:</label>
-                    <div id="quizEditor_${qIndex}" class="quiz-question-editor" style="min-height: 150px; border: 1px solid #ced4da; border-radius: 0.375rem;">
-                        ${question.question || ''}
+                    <div id="quizEditor_${qIndex}" class="quiz-question-editor" style="min-height: 150px; border: 1px solid #ced4da; border-radius: 0.375rem; padding: 10px;">
+                        ${question.question || 'Enter your question here...'}
                     </div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label small">Options:</label>
-                    ${(question.options || ['', '']).map((option, oIndex) => `
+                    ${(question.options || ['Option 1', 'Option 2']).map((option, oIndex) => `
                         <div class="input-group mb-1">
                             <div class="input-group-text">
                                 <input type="radio" name="correct_${qIndex}" value="${oIndex}" ${(question.correct_answer || question.answer_index || 0) === oIndex ? 'checked' : ''} onchange="updateQuizQuestion(${qIndex}, 'correct_answer', ${oIndex})">
                             </div>
                             <input type="text" class="form-control" placeholder="Option ${oIndex + 1}" value="${option || ''}" onchange="updateQuizOption(${qIndex}, ${oIndex}, this.value)">
-                            <button class="btn btn-outline-danger btn-sm" onclick="removeQuizOption(${qIndex}, ${oIndex})">
-                                <i class="bi bi-dash"></i>
-                            </button>
+                            ${(question.options || []).length > 2 ? `
+                                <button class="btn btn-outline-danger btn-sm" onclick="removeQuizOption(${qIndex}, ${oIndex})">
+                                    <i class="bi bi-dash"></i>
+                                </button>
+                            ` : ''}
                         </div>
                     `).join('')}
                     <button class="btn btn-sm btn-outline-primary mt-1" onclick="addQuizOption(${qIndex})">
                         <i class="bi bi-plus"></i> Add Option
                     </button>
                 </div>
-                ${question.explanation ? `
-                    <div class="mb-3">
-                        <label class="form-label small">Explanation:</label>
-                        <textarea class="form-control" rows="2" placeholder="Optional explanation for this question" onchange="updateQuizQuestion(${qIndex}, 'explanation', this.value)">${question.explanation || ''}</textarea>
-                    </div>
-                ` : `
-                    <div class="mb-3">
-                        <label class="form-label small">Explanation:</label>
-                        <textarea class="form-control" rows="2" placeholder="Optional explanation for this question" onchange="updateQuizQuestion(${qIndex}, 'explanation', this.value)"></textarea>
-                    </div>
-                `}
+                <div class="mb-3">
+                    <label class="form-label small">Explanation (Optional):</label>
+                    <textarea class="form-control" rows="2" placeholder="Optional explanation for this question" onchange="updateQuizQuestion(${qIndex}, 'explanation', this.value)">${question.explanation || ''}</textarea>
+                </div>
             </div>
         </div>
     `).join('');
     
-    // Initialize CKEditor instances for each question
-    await initializeQuizEditors(questions);
+    // Initialize CKEditor instances for each question with delay for DOM readiness
+    setTimeout(async () => {
+        await initializeQuizEditors(questions);
+    }, 100);
 }
 
 // Initialize CKEditor instances for quiz questions
 async function initializeQuizEditors(questions) {
+    if (!window.CKEDITOR || !CKEDITOR.InlineEditor) {
+        console.error('CKEditor not available');
+        return;
+    }
+    
     for (let qIndex = 0; qIndex < questions.length; qIndex++) {
         const editorElement = document.getElementById(`quizEditor_${qIndex}`);
         if (editorElement) {
             try {
+                // Check if editor already exists for this element
+                const existingEditorKey = `quizEditor_${qIndex}`;
+                if (quizEditors.has(existingEditorKey)) {
+                    await quizEditors.get(existingEditorKey).destroy();
+                    quizEditors.delete(existingEditorKey);
+                }
+                
                 const editor = await CKEDITOR.InlineEditor.create(editorElement, {
                     toolbar: {
                         items: [
                             'heading', '|',
                             'bold', 'italic', 'underline', '|',
                             'bulletedList', 'numberedList', '|',
-                            'link', 'insertTable', '|',
+                            'link', '|',
                             'undo', 'redo'
                         ]
                     },
@@ -296,22 +326,34 @@ async function initializeQuizEditors(questions) {
                         'CKBox', 'CKFinder', 'EasyImage', 'RealTimeCollaborativeComments',
                         'RealTimeCollaborativeTrackChanges', 'RealTimeCollaborativeRevisionHistory',
                         'PresenceList', 'Comments', 'TrackChanges', 'TrackChangesData',
-                        'RevisionHistory', 'Pagination', 'WProofreader', 'MathType'
+                        'RevisionHistory', 'Pagination', 'WProofreader', 'MathType', 'insertTable'
                     ]
                 });
                 
                 // Store the editor instance
-                quizEditors.set(`quizEditor_${qIndex}`, editor);
+                quizEditors.set(existingEditorKey, editor);
                 
                 // Add change listener to update quiz data
                 editor.model.document.on('change:data', () => {
-                    updateQuizQuestion(qIndex, 'question', editor.getData());
+                    // Debounce the update to avoid excessive calls
+                    clearTimeout(window.quizUpdateTimeout);
+                    window.quizUpdateTimeout = setTimeout(() => {
+                        updateQuizQuestion(qIndex, 'question', editor.getData());
+                    }, 300);
                 });
                 
                 console.log(`Quiz editor ${qIndex} initialized successfully`);
             } catch (error) {
                 console.error(`Failed to initialize quiz editor ${qIndex}:`, error);
+                // Fallback: make div contenteditable
+                editorElement.contentEditable = true;
+                editorElement.style.minHeight = '150px';
+                editorElement.addEventListener('input', () => {
+                    updateQuizQuestion(qIndex, 'question', editorElement.innerHTML);
+                });
             }
+        } else {
+            console.warn(`Editor element not found: quizEditor_${qIndex}`);
         }
     }
 }
@@ -354,38 +396,79 @@ function removeResource(index) {
 
 async function addQuizQuestion() {
     const questionsContainer = document.getElementById('quizQuestions');
+    if (!questionsContainer) {
+        console.error('Quiz questions container not found');
+        return;
+    }
+    
     const currentQuestions = getCurrentQuizQuestions();
     
     currentQuestions.push({
         question: '',
-        options: ['', ''],
-        correct_answer: 0
+        options: ['Option 1', 'Option 2'],
+        correct_answer: 0,
+        explanation: ''
     });
     
-    await renderQuizQuestions(currentQuestions);
+    try {
+        await renderQuizQuestions(currentQuestions);
+    } catch (error) {
+        console.error('Error adding quiz question:', error);
+    }
 }
 
 async function removeQuizQuestion(qIndex) {
+    if (!confirm('Are you sure you want to delete this question?')) {
+        return;
+    }
+    
     const currentQuestions = getCurrentQuizQuestions();
     currentQuestions.splice(qIndex, 1);
-    await renderQuizQuestions(currentQuestions);
+    
+    try {
+        await renderQuizQuestions(currentQuestions);
+    } catch (error) {
+        console.error('Error removing quiz question:', error);
+    }
 }
 
 async function addQuizOption(qIndex) {
     const currentQuestions = getCurrentQuizQuestions();
-    currentQuestions[qIndex].options.push('');
-    await renderQuizQuestions(currentQuestions);
+    if (!currentQuestions[qIndex]) {
+        console.error('Question not found at index:', qIndex);
+        return;
+    }
+    
+    currentQuestions[qIndex].options.push(`Option ${currentQuestions[qIndex].options.length + 1}`);
+    
+    try {
+        await renderQuizQuestions(currentQuestions);
+    } catch (error) {
+        console.error('Error adding quiz option:', error);
+    }
 }
 
 async function removeQuizOption(qIndex, oIndex) {
     const currentQuestions = getCurrentQuizQuestions();
+    if (!currentQuestions[qIndex]) {
+        console.error('Question not found at index:', qIndex);
+        return;
+    }
+    
     if (currentQuestions[qIndex].options.length > 2) { // Keep at least 2 options
         currentQuestions[qIndex].options.splice(oIndex, 1);
         // Adjust correct answer if needed
         if (currentQuestions[qIndex].correct_answer >= oIndex) {
             currentQuestions[qIndex].correct_answer = Math.max(0, currentQuestions[qIndex].correct_answer - 1);
         }
-        await renderQuizQuestions(currentQuestions);
+        
+        try {
+            await renderQuizQuestions(currentQuestions);
+        } catch (error) {
+            console.error('Error removing quiz option:', error);
+        }
+    } else {
+        showAlert('A question must have at least 2 options.', 'warning');
     }
 }
 
@@ -394,13 +477,22 @@ function getCurrentQuizQuestions() {
     return Array.from(questionCards).map(card => {
         const qIndex = card.dataset.questionId;
         
-        // Get question text from CKEditor instance
+        // Get question text from CKEditor instance or fallback to div content
         const editorKey = `quizEditor_${qIndex}`;
         const editor = quizEditors.get(editorKey);
-        const question = editor ? editor.getData() : '';
+        let question = '';
+        
+        if (editor) {
+            question = editor.getData();
+        } else {
+            // Fallback: get content from the editor div
+            const editorDiv = card.querySelector(`#quizEditor_${qIndex}`);
+            question = editorDiv ? editorDiv.innerHTML : '';
+        }
         
         // Get options from input fields
-        const options = Array.from(card.querySelectorAll('.input-group input[type="text"]')).map(input => input.value);
+        const optionInputs = card.querySelectorAll('.input-group input[type="text"]');
+        const options = Array.from(optionInputs).map(input => input.value || '');
         
         // Get correct answer
         const correctRadio = card.querySelector('input[type="radio"]:checked');
@@ -411,8 +503,8 @@ function getCurrentQuizQuestions() {
         const explanation = explanationTextarea ? explanationTextarea.value : '';
         
         return { 
-            question, 
-            options, 
+            question: question || '', 
+            options: options.length > 0 ? options : ['', ''], 
             correct_answer, 
             explanation: explanation || undefined
         };
