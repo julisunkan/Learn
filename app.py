@@ -3,6 +3,7 @@ import json
 import zipfile
 from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for, flash, session
 from werkzeug.utils import secure_filename
+from werkzeug.middleware.proxy_fix import ProxyFix
 from datetime import datetime
 import io
 from reportlab.pdfgen import canvas
@@ -23,10 +24,21 @@ import socket
 import ipaddress
 
 app = Flask(__name__)
+
+# Apply ProxyFix for proper HTTPS/proxy handling in Replit
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
 # Require secure session secret
 if not os.environ.get('SESSION_SECRET'):
     raise RuntimeError("SESSION_SECRET environment variable must be set for security")
 app.secret_key = os.environ.get('SESSION_SECRET')
+
+# Security configuration for production
+app.config['SESSION_COOKIE_SECURE'] = True  # HTTPS only
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JS access
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # CSRF protection
+app.config['PREFERRED_URL_SCHEME'] = 'https'  # Generate HTTPS URLs
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 31536000  # Cache static files for 1 year
 
 # Configuration
 UPLOAD_FOLDER = 'static/resources'
@@ -176,23 +188,37 @@ def set_user_id_cookie(response, user_id):
     """Set the user_id cookie in the response for persistence"""
     response.set_cookie('user_id', user_id, 
                        max_age=10*365*24*60*60,  # 10 years 
-                       secure=False,  # Set to True in production with HTTPS
+                       secure=True,  # HTTPS only in production
                        httponly=True,  # Prevent JavaScript access
                        samesite='Lax')
     return response
 
 @app.after_request
 def after_request(response):
-    """Set user ID cookie if new user was created during request and add cache control headers"""
+    """Set user ID cookie if new user was created during request and add selective cache control headers"""
     if 'new_user_id' in session:
         response = set_user_id_cookie(response, session['new_user_id'])
         # Clear the session flag
         session.pop('new_user_id', None)
     
-    # Add cache control headers to prevent caching issues
-    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
-    response.headers['Pragma'] = 'no-cache'
-    response.headers['Expires'] = '0'
+    # Set appropriate caching headers based on endpoint type
+    if request.endpoint == 'static':
+        # Cache static files for a year, except service worker
+        if request.path.endswith('/sw.js'):
+            response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        else:
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+    elif (request.path.startswith('/admin') or 
+          request.path.startswith('/api/') or 
+          request.endpoint in ['index', 'module_detail']):
+        # No cache for dynamic content
+        response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+        response.headers['Pragma'] = 'no-cache'
+        response.headers['Expires'] = '0'
+    
+    # Add security headers for HTTPS
+    if request.is_secure:
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
     
     return response
 
