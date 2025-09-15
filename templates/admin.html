@@ -412,7 +412,7 @@
                             <!-- Manifest Preview -->
                             <div class="mt-4 pt-3 border-top">
                                 <h6><i class="bi bi-file-earmark-code"></i> Manifest & PWA Info</h6>
-                                <div class="d-flex gap-2">
+                                <div class="d-flex gap-2 mb-3">
                                     <a href="/manifest.json" target="_blank" class="btn btn-outline-primary btn-sm">
                                         <i class="bi bi-eye"></i> View Manifest
                                     </a>
@@ -420,6 +420,12 @@
                                         <i class="bi bi-arrow-clockwise"></i> Refresh Icons
                                     </button>
                                 </div>
+                                
+                                <h6><i class="bi bi-crop"></i> Image Management</h6>
+                                <button class="btn btn-outline-warning btn-sm" id="cropAllImagesBtn" onclick="cropAllImages()">
+                                    <i class="bi bi-crop"></i> Crop All Images to 800x500
+                                </button>
+                                <small class="d-block text-muted mt-1">Crops all existing images in the resources folder to 800x500 pixels with responsive sizing</small>
                             </div>
                         </div>
                     </div>

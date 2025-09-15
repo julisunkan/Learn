@@ -576,65 +576,81 @@ def admin_modules():
 
     elif request.method == 'PUT':
         # Update module order and content
-        new_order = (request.json or {}).get('modules', [])
+        try:
+            new_order = (request.json or {}).get('modules', [])
+            
+            if not isinstance(new_order, list):
+                return jsonify({"success": False, "error": "Invalid modules data format"}), 400
 
-        # Get current modules to safely handle content updates
-        current_modules = courses['modules']
+            # Get current modules to safely handle content updates
+            current_modules = courses['modules']
 
-        # Create a mapping of existing modules by ID for safe content updates
-        existing_modules_by_id = {}
-        for module in current_modules:
-            # Ensure all existing modules have stable IDs
-            if 'module_id' not in module:
-                import uuid
-                module['module_id'] = str(uuid.uuid4())
-            existing_modules_by_id[module['module_id']] = module
-
-        # Process each module for content updates using stable IDs
-        for module_data in new_order:
-            # Ensure new modules have stable IDs  
-            if 'module_id' not in module_data:
-                import uuid
-                module_data['module_id'] = str(uuid.uuid4())
-
-            if 'content' in module_data:
-                # Find the corresponding existing module by stable ID - NOT by index
-                existing_module = existing_modules_by_id.get(module_data['module_id'])
-                existing_content_file = existing_module.get('content_file') if existing_module else None
-
-                if existing_content_file:
-                    # Use the existing content file - NEVER trust client-provided paths
-                    content_filename = existing_content_file
-                else:
-                    # Create new content file with UUID for uniqueness and security
+            # Create a mapping of existing modules by ID for safe content updates
+            existing_modules_by_id = {}
+            for module in current_modules:
+                # Ensure all existing modules have stable IDs
+                if 'module_id' not in module:
                     import uuid
-                    content_filename = f"content_{uuid.uuid4().hex[:8]}.html"
-                    module_data['content_file'] = content_filename
+                    module['module_id'] = str(uuid.uuid4())
+                existing_modules_by_id[module['module_id']] = module
 
-                # Validate filename for security - only allow safe filenames
-                if not content_filename or '/' in content_filename or '\\' in content_filename or '..' in content_filename:
-                    logger.error(f"Invalid content filename attempted: {content_filename}")
-                    return jsonify({"success": False, "error": "Invalid content file path"}), 400
+            # Process each module for content updates using stable IDs
+            for module_data in new_order:
+                if not isinstance(module_data, dict):
+                    return jsonify({"success": False, "error": "Invalid module data format"}), 400
+                    
+                # Ensure new modules have stable IDs  
+                if 'module_id' not in module_data:
+                    import uuid
+                    module_data['module_id'] = str(uuid.uuid4())
 
-                content_path = f"data/modules/{content_filename}"
+                if 'content' in module_data:
+                    # Find the corresponding existing module by stable ID - NOT by index
+                    existing_module = existing_modules_by_id.get(module_data['module_id'])
+                    existing_content_file = existing_module.get('content_file') if existing_module else None
 
-                # Write content to file
-                os.makedirs('data/modules', exist_ok=True)
-                with open(content_path, 'w', encoding='utf-8') as f:
-                    f.write(module_data['content'])
-                
-                # Crop images within the content file
-                if content_filename.lower().endswith(('.html', '.htm', '.md')):
-                    resize_images_in_file(content_path, 800, 500)
+                    if existing_content_file:
+                        # Use the existing content file - NEVER trust client-provided paths
+                        content_filename = existing_content_file
+                    else:
+                        # Create new content file with UUID for uniqueness and security
+                        import uuid
+                        content_filename = f"content_{uuid.uuid4().hex[:8]}.html"
+                        module_data['content_file'] = content_filename
 
-                # Set the safe content_file reference
-                module_data['content_file'] = content_filename
-                # Remove content from module data to keep JSON clean
-                del module_data['content']
+                    # Validate filename for security - only allow safe filenames
+                    if not content_filename or '/' in content_filename or '\\' in content_filename or '..' in content_filename:
+                        logger.error(f"Invalid content filename attempted: {content_filename}")
+                        return jsonify({"success": False, "error": "Invalid content file path"}), 400
 
-        courses['modules'] = new_order
-        save_courses(courses)
-        return jsonify({"success": True})
+                    content_path = f"data/modules/{content_filename}"
+
+                    try:
+                        # Write content to file
+                        os.makedirs('data/modules', exist_ok=True)
+                        with open(content_path, 'w', encoding='utf-8') as f:
+                            f.write(module_data['content'])
+                        
+                        # Crop images within the content file
+                        if content_filename.lower().endswith(('.html', '.htm', '.md')):
+                            resize_images_in_file(content_path, 800, 500)
+
+                        # Set the safe content_file reference
+                        module_data['content_file'] = content_filename
+                        # Remove content from module data to keep JSON clean
+                        del module_data['content']
+                        
+                    except IOError as e:
+                        logger.error(f"Error writing content file {content_filename}: {str(e)}")
+                        return jsonify({"success": False, "error": f"Error saving content: {str(e)}"}), 500
+
+            courses['modules'] = new_order
+            save_courses(courses)
+            return jsonify({"success": True})
+            
+        except Exception as e:
+            logger.error(f"Error updating modules: {str(e)}")
+            return jsonify({"success": False, "error": f"Error updating modules: {str(e)}"}), 500
 
     elif request.method == 'DELETE':
         # Delete module
@@ -811,6 +827,10 @@ def resize_images_in_file(file_path, target_width, target_height):
     Finds all image tags in an HTML or Markdown file and crops the images
     to the target dimensions. Updates the image source to point to the cropped image.
     """
+    if not os.path.exists(file_path):
+        logger.warning(f"File does not exist for image cropping: {file_path}")
+        return
+    
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
@@ -818,22 +838,48 @@ def resize_images_in_file(file_path, target_width, target_height):
         logger.error(f"Could not read file {file_path} for image cropping: {e}")
         return
 
+    if not content.strip():
+        logger.warning(f"File is empty, skipping image cropping: {file_path}")
+        return
+
     import re
 
     # Regex to find image tags (img src="...") or Markdown images (![alt](src))
-    # This regex is simplified and might need adjustment for complex cases
-    image_sources = re.findall(r'<img[^>]+src="([^"]+)"', content)
-    image_sources.extend(re.findall(r'!\[.*?\]\(([^)]+)\)', content))
+    image_sources = []
+    
+    # Find HTML img tags
+    try:
+        html_images = re.findall(r'<img[^>]+src="([^"]+)"', content, re.IGNORECASE)
+        image_sources.extend(html_images)
+    except re.error as e:
+        logger.error(f"Error in HTML image regex: {e}")
+    
+    # Find Markdown images
+    try:
+        markdown_images = re.findall(r'!\[.*?\]\(([^)]+)\)', content)
+        image_sources.extend(markdown_images)
+    except re.error as e:
+        logger.error(f"Error in Markdown image regex: {e}")
+    
+    if not image_sources:
+        logger.info(f"No images found in file: {file_path}")
+        return
     
     resources_dir = os.path.abspath('static/resources')
+    content_modified = False
 
     for src in image_sources:
-        # Clean up src, remove potential query params
-        src = src.split('?')[0]
+        # Clean up src, remove potential query params and fragments
+        original_src = src
+        src = src.split('?')[0].split('#')[0]
         
+        # Skip external URLs and data URLs
+        if src.startswith(('http://', 'https://', 'data:', '//', 'ftp://')):
+            continue
+            
         # Ensure the image is in the /static/resources folder
         if src.startswith('/static/resources/'):
-            image_path_relative = src[1:] # Remove leading slash
+            image_path_relative = src[1:]  # Remove leading slash
             
             try:
                 full_image_path = os.path.abspath(image_path_relative)
@@ -847,28 +893,48 @@ def resize_images_in_file(file_path, target_width, target_height):
                     logger.warning(f"Image not found for cropping: {full_image_path}")
                     continue
 
+                # Check if it's actually an image file
+                if not full_image_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
+                    logger.warning(f"Skipping non-image file: {full_image_path}")
+                    continue
+
                 # Crop the image
                 cropped_path = crop_single_image(full_image_path, target_width, target_height)
 
                 if cropped_path:
                     # Update the content with the new path
-                    new_src = cropped_path.replace('\\', '/') # Use forward slashes for web paths
-                    # Replace in both HTML and Markdown formats
-                    content = content.replace(f'src="{src}"', f'src="{new_src}"')
-                    content = content.replace(f'src="{src.split("/")[-1]}"', f'src="{new_src}"') # Handle relative paths if they appear like that
-                    content = content.replace(f'![^)]+]({src})', f'![^)]+]({new_src})')
+                    new_src = cropped_path.replace('\\', '/')  # Use forward slashes for web paths
+                    
+                    # Replace in HTML format
+                    old_pattern = f'src="{original_src}"'
+                    new_pattern = f'src="{new_src}"'
+                    if old_pattern in content:
+                        content = content.replace(old_pattern, new_pattern)
+                        content_modified = True
+                    
+                    # Replace in Markdown format
+                    old_md_pattern = f']({original_src})'
+                    new_md_pattern = f']({new_src})'
+                    if old_md_pattern in content:
+                        content = content.replace(old_md_pattern, new_md_pattern)
+                        content_modified = True
+                        
+                    logger.info(f"Updated image reference from {original_src} to {new_src}")
 
             except Exception as e:
                 logger.error(f"Error processing image {src}: {e}")
                 continue
 
-    # Save the modified content back to the file
-    try:
-        with open(file_path, 'w', encoding='utf-8') as f:
-            f.write(content)
-        logger.info(f"Cropped images in {file_path} and updated content.")
-    except Exception as e:
-        logger.error(f"Could not save modified content for {file_path}: {e}")
+    # Save the modified content back to the file only if changes were made
+    if content_modified:
+        try:
+            with open(file_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            logger.info(f"Updated image references in {file_path}")
+        except Exception as e:
+            logger.error(f"Could not save modified content for {file_path}: {e}")
+    else:
+        logger.info(f"No image references updated in {file_path}")
 
 
 def crop_single_image(image_path, width, height):
@@ -1450,6 +1516,95 @@ def admin_import_url():
     except Exception as e:
         logger.error(f"URL import error: {str(e)}")
         return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/admin/crop_all_images', methods=['POST'])
+@require_admin_auth()
+def crop_all_images():
+    """Crop all existing images in the resources folder to 800x500"""
+    try:
+        resources_dir = 'static/resources'
+        cropped_count = 0
+        error_count = 0
+        
+        if not os.path.exists(resources_dir):
+            return jsonify({"success": False, "error": "Resources directory not found"}), 404
+        
+        # Get all image files
+        image_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.webp')
+        image_files = []
+        
+        for filename in os.listdir(resources_dir):
+            if filename.lower().endswith(image_extensions):
+                image_files.append(os.path.join(resources_dir, filename))
+        
+        if not image_files:
+            return jsonify({"success": True, "message": "No images found to crop", "cropped": 0})
+        
+        # Crop each image
+        for image_path in image_files:
+            try:
+                cropped_path = crop_single_image(image_path, 800, 500)
+                if cropped_path:
+                    cropped_count += 1
+                else:
+                    error_count += 1
+                    logger.warning(f"Failed to crop image: {image_path}")
+            except Exception as e:
+                error_count += 1
+                logger.error(f"Error cropping image {image_path}: {str(e)}")
+        
+        if cropped_count > 0:
+            return jsonify({
+                "success": True, 
+                "message": f"Successfully cropped {cropped_count} images to 800x500 pixels with responsive sizing. {error_count} errors occurred.",
+                "cropped": cropped_count,
+                "errors": error_count
+            })
+        else:
+            return jsonify({
+                "success": False, 
+                "error": f"Failed to crop any images. {error_count} errors occurred."
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Error in crop_all_images: {str(e)}")
+        return jsonify({"success": False, "error": f"Server error: {str(e)}"}), 500
+
+@app.route('/admin/delete_pwa_icon', methods=['POST'])
+@require_admin_auth()
+def delete_pwa_icon():
+    """Delete a PWA icon file"""
+    try:
+        data = request.json or {}
+        icon_filename = data.get('filename', '')
+        
+        if not icon_filename:
+            return jsonify({"success": False, "error": "Icon filename is required"}), 400
+        
+        # Security check - ensure filename is safe
+        if not icon_filename or '/' in icon_filename or '\\' in icon_filename or '..' in icon_filename:
+            return jsonify({"success": False, "error": "Invalid filename"}), 400
+        
+        # Check if it's a valid PWA icon filename pattern
+        import re
+        if not re.match(r'^icon-\d+x\d+(-maskable)?\.png$', icon_filename):
+            return jsonify({"success": False, "error": "Invalid PWA icon filename format"}), 400
+        
+        icon_path = os.path.join('static', 'pwa-icons', icon_filename)
+        
+        if not os.path.exists(icon_path):
+            return jsonify({"success": False, "error": "Icon file not found"}), 404
+        
+        os.remove(icon_path)
+        
+        return jsonify({
+            "success": True, 
+            "message": f"PWA icon {icon_filename} deleted successfully"
+        })
+        
+    except Exception as e:
+        logger.error(f"Error deleting PWA icon: {str(e)}")
+        return jsonify({"success": False, "error": f"Error deleting icon: {str(e)}"}), 500
 
 @app.route('/admin/generate_quiz', methods=['POST'])
 @require_admin_auth()

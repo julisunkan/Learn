@@ -1407,12 +1407,88 @@ function addIconToDisplay(container, iconUrl, size, iconType) {
     container.appendChild(col);
 }
 
-function deletePWAIcon(iconUrl, size, iconType) {
+async function deletePWAIcon(iconUrl, size, iconType) {
     if (!confirm(`Delete ${size}x${size} ${iconType} icon?`)) return;
     
-    // Note: This would require implementing a delete endpoint
-    // For now, just show a message
-    showAlert('Icon deletion requires server-side implementation', 'info');
+    try {
+        // Extract filename from URL
+        const filename = iconUrl.split('/').pop();
+        
+        // Get CSRF token
+        const token = await getCsrfToken();
+        if (!token) {
+            showAlert('Security token error. Please refresh the page.', 'danger');
+            return;
+        }
+        
+        const response = await fetch('/admin/delete_pwa_icon', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token
+            },
+            body: JSON.stringify({ filename: filename })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert(data.message, 'success');
+            loadPWAIcons(); // Refresh the icons display
+        } else {
+            showAlert(`Error: ${data.error}`, 'danger');
+        }
+        
+    } catch (error) {
+        console.error('Error deleting PWA icon:', error);
+        showAlert('Error deleting PWA icon', 'danger');
+    }
+}
+
+// Crop all images functionality
+async function cropAllImages() {
+    if (!confirm('This will crop ALL existing images in the resources folder to 800x500 pixels with responsive sizing. This action cannot be undone. Continue?')) {
+        return;
+    }
+    
+    // Get CSRF token
+    const token = await getCsrfToken();
+    if (!token) {
+        showAlert('Security token error. Please refresh the page.', 'danger');
+        return;
+    }
+    
+    const button = document.getElementById('cropAllImagesBtn');
+    if (button) {
+        button.disabled = true;
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Cropping...';
+    }
+    
+    try {
+        const response = await fetch('/admin/crop_all_images', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-Token': token
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showAlert(data.message, 'success');
+        } else {
+            showAlert('Error: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error cropping images:', error);
+        showAlert('Error cropping images.', 'danger');
+    } finally {
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = '<i class="bi bi-crop"></i> Crop All Images to 800x500';
+        }
+    }
 }
 
 // CSRF token management
