@@ -73,57 +73,16 @@ function initializeAdminDashboard() {
 
 // TinyMCE Functions
 function initializeTinyMCE() {
-    // Initialize TinyMCE when the modal is shown
-    const moduleModal = document.getElementById('moduleModal');
-    if (moduleModal) {
-        moduleModal.addEventListener('shown.bs.modal', function() {
-            if (!tinymce.get('moduleContent')) {
-                tinymce.init({
-                    selector: '#moduleContent',
-                    height: 300,
-                    menubar: false,
-                    plugins: [
-                        'advlist autolink lists link image charmap print preview anchor',
-                        'searchreplace visualblocks code fullscreen',
-                        'insertdatetime media table paste code help wordcount'
-                    ],
-                    toolbar: 'undo redo | formatselect | ' +
-                        'bold italic backcolor | alignleft aligncenter ' +
-                        'alignright alignjustify | bullist numlist outdent indent | ' +
-                        'removeformat | code | help',
-                    content_style: 'body { font-family:Helvetica,Arial,sans-serif; font-size:14px }',
-                    setup: function(editor) {
-                        editor.on('change', function() {
-                            editor.save();
-                        });
-                    }
-                });
-            }
-        });
-        
-        moduleModal.addEventListener('hidden.bs.modal', function() {
-            if (tinymce.get('moduleContent')) {
-                tinymce.get('moduleContent').destroy();
-            }
-        });
-    }
+    // Simple textarea - no initialization needed
+    // Function kept for compatibility
 }
 
 function getTinyMCEContent() {
-    const editor = tinymce.get('moduleContent');
-    if (editor) {
-        return editor.getContent();
-    }
     return document.getElementById('moduleContent').value;
 }
 
 function setTinyMCEContent(content) {
-    const editor = tinymce.get('moduleContent');
-    if (editor) {
-        editor.setContent(content || '');
-    } else {
-        document.getElementById('moduleContent').value = content || '';
-    }
+    document.getElementById('moduleContent').value = content || '';
 }
 
 // Module Management Functions
@@ -267,16 +226,16 @@ function renderQuizQuestions(questions) {
             </div>
             <div class="card-body">
                 <div class="mb-3">
-                    <input type="text" class="form-control" placeholder="Enter question" value="${question.question}" onchange="updateQuizQuestion(${qIndex}, 'question', this.value)">
+                    <input type="text" class="form-control" placeholder="Enter question" value="${question.question || ''}" onchange="updateQuizQuestion(${qIndex}, 'question', this.value)">
                 </div>
                 <div class="mb-3">
                     <label class="form-label small">Options:</label>
-                    ${question.options.map((option, oIndex) => `
+                    ${(question.options || ['', '']).map((option, oIndex) => `
                         <div class="input-group mb-1">
                             <div class="input-group-text">
-                                <input type="radio" name="correct_${qIndex}" value="${oIndex}" ${question.correct_answer === oIndex ? 'checked' : ''} onchange="updateQuizQuestion(${qIndex}, 'correct_answer', ${oIndex})">
+                                <input type="radio" name="correct_${qIndex}" value="${oIndex}" ${(question.correct_answer || question.answer_index || 0) === oIndex ? 'checked' : ''} onchange="updateQuizQuestion(${qIndex}, 'correct_answer', ${oIndex})">
                             </div>
-                            <input type="text" class="form-control" placeholder="Option ${oIndex + 1}" value="${option}" onchange="updateQuizOption(${qIndex}, ${oIndex}, this.value)">
+                            <input type="text" class="form-control" placeholder="Option ${oIndex + 1}" value="${option || ''}" onchange="updateQuizOption(${qIndex}, ${oIndex}, this.value)">
                             <button class="btn btn-outline-danger btn-sm" onclick="removeQuizOption(${qIndex}, ${oIndex})">
                                 <i class="bi bi-dash"></i>
                             </button>

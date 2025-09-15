@@ -1,0 +1,40 @@
+ll created TinyMCE editors are configured to be read-only.
+tcsl @ tinymce.min.js:37Understand this error
+tinymce.min.js:25 A valid API key is required to continue using TinyMCE.
+
+*Please alert the admin* to check the current API key.
+
+Read to learn more:
+https://www.tiny.cloud/docs/tinymce/latest/invalid-api-key/?utm_campaign=no_api_key_learn_more&utm_source=tiny&utm_medium=referral
+
+↓↓↓↓↓ ATTENTION ADMINS ↓↓↓↓↓
+Please include these details in Tiny Cloud support requests.
+Resolved API key: no-api-key
+Editor read-only?: yes
+Origin: https://d3e6980c-e99b-4c2b-903f-0f549407922b-00-y2u0ou65h0f9.kirk.replit.dev
+Tiny Cloud entry URL: https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js
+↑↑↑↑↑ ---------------- ↑↑↑↑↑
+D @ tinymce.min.js:25Understand this warning
+admin:1 [DOM] Found 2 elements with non-unique id #moduleTitle: (More info: https://goo.gl/9p2vKq) <input type=​"text" class=​"form-control" id=​"moduleTitle" required>​ <input type=​"text" class=​"form-control" id=​"moduleTitle" placeholder=​"Leave empty to use page title">​Understand this warning
+admin:633 Service Worker registered with scope: https://d3e6980c-e99b-4c2b-903f-0f549407922b-00-y2u0ou65h0f9.kirk.replit.dev/
+admin:665 PWA install prompt available
+admin:1 Banner not shown: beforeinstallpromptevent.preventDefault() called. The page must call beforeinstallpromptevent.prompt() to show the banner.
+26admin.js:274 Uncaught TypeError: Cannot read properties of undefined (reading 'map')
+    at admin.js:274:40
+    at Array.map (<anonymous>)
+    at renderQuizQuestions (admin.js:258:41)
+    at populateModuleForm (admin.js:240:5)
+    at editModule (admin.js:201:5)
+    at HTMLButtonElement.onclick (admin:704:9)Understand this error
+5admin.js:274 Uncaught TypeError: Cannot read properties of undefined (reading 'map')
+    at admin.js:274:40
+    at Array.map (<anonymous>)
+    at renderQuizQuestions (admin.js:258:41)
+    at populateModuleForm (admin.js:240:5)
+    at editModule (admin.js:201:5)
+    at HTMLButtonElement.onclick (admin:704:9)
+(anonymous) @ admin.js:274
+renderQuizQuestions @ admin.js:258
+populateModuleForm @ admin.js:240
+editModule @ admin.js:201
+onclick @ admin:704Understand this error

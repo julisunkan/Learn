@@ -240,8 +240,8 @@
                                     <input type="url" class="form-control" id="importUrl" placeholder="https://example.com/article" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label for="moduleTitle" class="form-label">Module Title (optional)</label>
-                                    <input type="text" class="form-control" id="moduleTitle" placeholder="Leave empty to use page title">
+                                    <label for="urlImportModuleTitle" class="form-label">Module Title (optional)</label>
+                                    <input type="text" class="form-control" id="urlImportModuleTitle" placeholder="Leave empty to use page title">
                                 </div>
                                 
                                 <div class="row mb-3">
@@ -534,8 +534,6 @@
 {% endblock %}
 
 {% block scripts %}
-<!-- TinyMCE Editor -->
-<script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
 <script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
