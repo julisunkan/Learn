@@ -195,8 +195,8 @@ body {
 .module-card .card-text {
   opacity: 1;
   line-height: 1.5;
-  color: var(--text-secondary) !important;
-  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9) !important;
+  font-weight: 400;
 }
 
 .module-card .btn-primary {
@@ -219,7 +219,11 @@ body {
 }
 
 .module-card:nth-child(6n) .text-muted {
-  color: rgba(51, 51, 51, 0.7) !important;
+  color: rgba(51, 51, 51, 0.8) !important;
+}
+
+.module-card:nth-child(6n) .card-text {
+  color: rgba(51, 51, 51, 0.8) !important;
 }
 
 /* Progress bar enhancements */
