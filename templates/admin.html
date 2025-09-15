@@ -536,6 +536,7 @@
 {% block scripts %}
 <!-- TinyMCE Editor -->
 <script src="https://cdn.tiny.cloud/1/no-api-key/tinymce/6/tinymce.min.js" referrerpolicy="origin"></script>
+<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     initializeAdminDashboard();
@@ -546,5 +547,4 @@ document.addEventListener('DOMContentLoaded', function() {
     initializePWASettings();
 });
 </script>
-<script src="{{ url_for('static', filename='js/admin.js') }}"></script>
 {% endblock %}
